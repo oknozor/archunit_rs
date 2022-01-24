@@ -4,136 +4,207 @@
 //   - implement visibility assertion
 //   - implement function/struct/enum/module matchers
 
-use std::fs::File;
-use std::{
-    env,
-    io::Read,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
-
-use syn::{File as SynFile, Ident, Item};
+use crate::parse::ModuleAst;
+use once_cell::sync::OnceCell;
 
 mod assertion;
+pub mod parse;
 
-#[derive(Debug)]
-struct ModulePath(PathBuf);
+use once_cell::sync::Lazy;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::{collections::HashMap, sync::Mutex};
+use syn::ItemStruct;
 
-#[derive(Debug)]
-struct Ast(SynFile);
+pub trait Condition {}
+pub trait Assertion {}
 
-#[derive(Debug)]
-pub struct Module {
-    name: String,
-    location: ModulePath,
-    ast: Ast,
-    submodules: Vec<Module>,
+pub struct ArchOperator<C: Condition, P: Assertion>(ArchRule<C, P>);
+pub struct ArchPredicate<C: Condition, P: Assertion>(ArchRule<C, P>);
+pub struct ArchConditionBuilder<C: Condition, P: Assertion>(ArchRule<C, P>);
+
+pub struct ArchRule<C: Condition, P: Assertion> {
+    conditions: Vec<C>,
+    assertions: Vec<P>,
 }
 
-impl ModulePath {
-    fn get_ast(&self) -> Ast {
-        let mut file = File::open(&self.0).expect("Unable to open file");
-        let mut src = String::new();
-        file.read_to_string(&mut src).expect("Unable to read file");
-        Ast(syn::parse_file(&src).expect("Unable to parse file"))
-    }
+enum ModuleCondition {
+    AreDeclaredPublic,
+    ResidesInAModule { module_regex: String },
+    ArePublic,
+    ArePrivate,
+    HaveSimpleName { expression: String },
+    And,
+    Or,
+}
+enum ModulePredicate {
+    ArePublic,
+    ArePrivate,
+    HaveSimpleName { expression: String },
+}
 
-    fn get_dir(&self) -> &Path {
-        self.0.parent().unwrap()
-    }
+impl Condition for ModuleCondition {}
 
-    fn crate_root() -> Self {
-        let working_directory = env::var("CARGO_MANIFEST_DIR").unwrap();
-        let lib_path = PathBuf::from_str(&working_directory)
-            .unwrap()
-            .join("src")
-            .join("lib.rs");
+enum ModuleAssertion {
+    OnlyHaveDependencyModuleThat(ModulePredicate),
+}
 
-        if lib_path.exists() {
-            Self(lib_path)
-        } else {
-            Self(
-                PathBuf::from_str(&working_directory)
-                    .unwrap()
-                    .join("src")
-                    .join("main.rs"),
-            )
+enum ModuleAssertionBuilder {
+    OnlyHaveDependencyModuleThat,
+}
+
+impl Assertion for ModuleAssertion {}
+
+impl<C, P> ArchRule<C, P>
+where
+    C: Condition,
+    P: Assertion,
+{
+    pub fn new() -> Self {
+        ArchRule {
+            conditions: vec![],
+            assertions: vec![],
         }
     }
 }
 
-impl Module {
-    fn get_submodule(&self, ident: &Ident) -> Self {
-        let base_dir = self.location.get_dir();
-        let file_module = base_dir.to_path_buf().join(format!("{ident}.rs"));
-        let directory_module = base_dir.to_path_buf().join(format!("{ident}/mod.rs"));
-        if file_module.exists() {
-            let name = ident.to_string();
-            let location = ModulePath(file_module);
-            let ast = location.get_ast();
-            Self {
-                name,
-                location,
-                ast,
-                submodules: vec![],
+pub struct Modules;
+
+impl Modules {
+    fn that() -> ArchConditionBuilder<ModuleCondition, ModuleAssertion>
+    where
+        Self: Sized,
+    {
+        ArchConditionBuilder(ArchRule::new())
+    }
+}
+
+impl ArchConditionBuilder<ModuleCondition, ModuleAssertion> {
+    fn reside_in_a_module(
+        mut self,
+        module: &str,
+    ) -> ArchOperator<ModuleCondition, ModuleAssertion> {
+        self.0.conditions.push(ModuleCondition::ResidesInAModule {
+            module_regex: module.to_string(),
+        });
+        ArchOperator(self.0)
+    }
+
+    fn are_declared_public(mut self) -> ArchOperator<ModuleCondition, ModuleAssertion> {
+        self.0.conditions.push(ModuleCondition::AreDeclaredPublic);
+        ArchOperator(self.0)
+    }
+}
+
+impl ArchOperator<ModuleCondition, ModuleAssertion> {
+    fn and(mut self) -> ArchConditionBuilder<ModuleCondition, ModuleAssertion> {
+        self.0.conditions.push(ModuleCondition::And);
+        ArchConditionBuilder(self.0)
+    }
+
+    fn or(mut self) -> ArchConditionBuilder<ModuleCondition, ModuleAssertion> {
+        self.0.conditions.push(ModuleCondition::Or);
+        ArchConditionBuilder(self.0)
+    }
+
+    fn should(self) -> ArchPredicate<ModuleCondition, ModuleAssertion> {
+        ArchPredicate(self.0)
+    }
+}
+
+impl ArchPredicate<ModuleCondition, ModuleAssertion> {
+    pub fn only_have_dependency_modules_that(mut self) -> ArchModulePredicateBuilder {
+        ArchModulePredicateBuilder {
+            assertions: ModuleAssertionBuilder::OnlyHaveDependencyModuleThat,
+            rule: self.0,
+        }
+    }
+}
+
+pub struct ArchModulePredicateBuilder {
+    assertions: ModuleAssertionBuilder,
+    rule: ArchRule<ModuleCondition, ModuleAssertion>,
+}
+
+impl ArchModulePredicateBuilder {
+    fn are_private(mut self) -> ArchRule<ModuleCondition, ModuleAssertion> {
+        match self.assertions {
+            ModuleAssertionBuilder::OnlyHaveDependencyModuleThat => {
+                self.rule
+                    .assertions
+                    .push(ModuleAssertion::OnlyHaveDependencyModuleThat(
+                        ModulePredicate::ArePrivate,
+                    ))
             }
-        } else if directory_module.exists() {
-            let name = ident.to_string();
-            let location = ModulePath(directory_module);
-            let ast = location.get_ast();
-            Module {
-                name,
-                location,
-                ast,
-                submodules: vec![],
+        }
+
+        self.rule
+    }
+
+    fn are_public(mut self) -> ArchRule<ModuleCondition, ModuleAssertion> {
+        match self.assertions {
+            ModuleAssertionBuilder::OnlyHaveDependencyModuleThat => {
+                self.rule
+                    .assertions
+                    .push(ModuleAssertion::OnlyHaveDependencyModuleThat(
+                        ModulePredicate::ArePublic,
+                    ))
             }
-        } else {
-            panic!("no module path found for module {ident}")
-        }
-    }
-
-    pub fn load_crate_root() -> Module {
-        let location = ModulePath::crate_root();
-        let ast = location.get_ast();
-        let mut crate_root = Module {
-            // Fixme: should be named after the crate name
-            name: "crate_root".to_string(),
-            location,
-            ast,
-            submodules: Vec::with_capacity(0),
-        };
-
-        crate_root.load_submodules();
-        crate_root
-    }
-
-    fn load_submodules(&mut self) {
-        let submodules = self.ast.get_modules_ident();
-        let mut submodules: Vec<Module> = submodules
-            .iter()
-            .map(|module_ident| self.get_submodule(module_ident))
-            .collect();
-
-        for module in submodules.iter_mut() {
-            module.load_submodules();
         }
 
-        self.submodules = submodules;
+        self.rule
+    }
+
+    fn have_simple_name(mut self, expression: &str) -> ArchRule<ModuleCondition, ModuleAssertion> {
+        match self.assertions {
+            ModuleAssertionBuilder::OnlyHaveDependencyModuleThat => {
+                self.rule
+                    .assertions
+                    .push(ModuleAssertion::OnlyHaveDependencyModuleThat(
+                        ModulePredicate::HaveSimpleName {
+                            expression: expression.to_string(),
+                        },
+                    ))
+            }
+        }
+
+        self.rule
     }
 }
 
-impl Ast {
-    fn get_modules_ident(&self) -> Vec<Ident> {
-        self.0
-            .items
-            .iter()
-            .filter_map(|item| match item {
-                Item::Mod(item_mod) => Some(item_mod),
-                _ => None,
-            })
-            // filtering out file declared modules
-            .filter(|module| module.content.is_none())
-            .map(|module| module.ident.clone())
-            .collect()
+#[cfg(test)]
+mod test {
+    use crate::{ArchPredicate, Modules};
+    use crate::{ArchRule, Structs};
+
+    #[test]
+    fn public_api_construct() {
+        let rule = Modules::that()
+            .reside_in_a_module("foo::bar")
+            .and()
+            .are_declared_public()
+            .should()
+            .only_have_dependency_modules_that()
+            .have_simple_name("baz");
+
+        let rule = Modules::that()
+            .are_declared_public()
+            .should()
+            .only_have_dependency_modules_that()
+            .are_private();
     }
 }
+
+/*
+ArchRule rule = Functions::that()
+    .arePublic()
+    .and()
+    .are_declared_in_struct_that()
+    .reside_in_a_module("::controller::")
+    .should()
+    .derive(Debug)
+ */
+// Structs::that()
+//     .reside_in_a_module("foo::bar")
+//     .should()
+//     .be_public()
