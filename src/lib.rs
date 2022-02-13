@@ -1,22 +1,12 @@
 // TODO :
-//   - load every file in the crate
+//   - [x] load every file in the crate
 //   - implement the architecture layer assertions
-//   - implement visibility assertion
-//   - implement function/struct/enum/module matchers
+//   - [x] implement visibility assertion
+//   - implement function/struct/enum/modules matchers
 
-pub mod parse;
+extern crate core;
+
+pub mod assertion_result;
+pub mod ast;
 pub mod rule;
-
-/*
-ArchRule rule = Functions::that()
-    .arePublic()
-    .and()
-    .are_declared_in_struct_that()
-    .reside_in_a_module("::controller::")
-    .should()
-    .derive(Debug)
- */
-// Structs::that()
-//     .reside_in_a_module("foo::bar")
-//     .should()
-//     .be_public()
+use ast::ModuleTree;

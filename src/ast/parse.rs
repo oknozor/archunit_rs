@@ -9,21 +9,21 @@ use std::{
 use syn::{File as SynFile, Ident, Item};
 
 #[derive(Debug)]
-pub(crate) struct ModulePath(PathBuf);
+pub(crate) struct ModuleFilePath(PathBuf);
 
 #[derive(Debug)]
-pub(crate) struct Ast(SynFile);
+pub(crate) struct Ast(pub SynFile);
 
 #[derive(Debug)]
-pub(crate) struct ModuleAst {
+pub struct ModuleAst {
     pub(crate) name: String,
-    pub(crate) location: ModulePath,
+    pub(crate) location: ModuleFilePath,
     pub(crate) ast: Ast,
     pub(crate) submodules: Vec<ModuleAst>,
 }
 
-impl ModulePath {
-    fn get_ast(&self) -> Ast {
+impl ModuleFilePath {
+    pub fn get_ast(&self) -> Ast {
         let mut file = File::open(&self.0).expect("Unable to open file");
         let mut src = String::new();
         file.read_to_string(&mut src).expect("Unable to read file");
@@ -34,7 +34,7 @@ impl ModulePath {
         self.0.parent().unwrap()
     }
 
-    fn crate_root() -> Self {
+    pub fn crate_root() -> Self {
         let working_directory = env::var("CARGO_MANIFEST_DIR").unwrap();
         let lib_path = PathBuf::from_str(&working_directory)
             .unwrap()
@@ -55,13 +55,28 @@ impl ModulePath {
 }
 
 impl ModuleAst {
+    pub(crate) fn load_crate_ast() -> ModuleAst {
+        let location = ModuleFilePath::crate_root();
+        let ast = location.get_ast();
+        let name = env!("CARGO_CRATE_NAME", "'CARGO_CRATE_NAME' should be set").to_string();
+        let mut crate_root = ModuleAst {
+            name,
+            location,
+            ast,
+            submodules: Vec::with_capacity(0),
+        };
+
+        crate_root.load_submodules();
+        crate_root
+    }
+
     fn get_submodule(&self, ident: &Ident) -> Self {
         let base_dir = self.location.get_dir();
         let file_module = base_dir.to_path_buf().join(format!("{ident}.rs"));
         let directory_module = base_dir.to_path_buf().join(format!("{ident}/mod.rs"));
         if file_module.exists() {
             let name = ident.to_string();
-            let location = ModulePath(file_module);
+            let location = ModuleFilePath(file_module);
             let ast = location.get_ast();
             Self {
                 name,
@@ -71,7 +86,7 @@ impl ModuleAst {
             }
         } else if directory_module.exists() {
             let name = ident.to_string();
-            let location = ModulePath(directory_module);
+            let location = ModuleFilePath(directory_module);
             let ast = location.get_ast();
             ModuleAst {
                 name,
@@ -80,23 +95,8 @@ impl ModuleAst {
                 submodules: vec![],
             }
         } else {
-            panic!("no module path found for module {ident}")
+            panic!("no modules path found for modules {ident}")
         }
-    }
-
-    pub fn load_crate_root() -> ModuleAst {
-        let location = ModulePath::crate_root();
-        let ast = location.get_ast();
-        let mut crate_root = ModuleAst {
-            // Fixme: should be named after the crate name
-            name: "crate_root".to_string(),
-            location,
-            ast,
-            submodules: Vec::with_capacity(0),
-        };
-
-        crate_root.load_submodules();
-        crate_root
     }
 
     fn load_submodules(&mut self) {
@@ -127,5 +127,21 @@ impl Ast {
             .filter(|module| module.content.is_none())
             .map(|module| module.ident.clone())
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::ast::parse::ModuleAst;
+    use crate::ast::visitor::ModuleOrCrateRoot;
+    use crate::ast::ItemPath;
+
+    #[test]
+    fn test() {
+        let mut ast = ModuleAst::load_crate_ast();
+        let tree = ast.visit_modules(ModuleOrCrateRoot::CrateRoot);
+        let tree = tree.to_tree(&ItemPath::empty());
+
+        println!("{:#?}", tree);
     }
 }
