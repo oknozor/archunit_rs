@@ -1,8 +1,9 @@
-use crate::ast::Struct;
+use crate::ast::structs::Struct;
 use crate::rule::assertable::Assertable;
-use crate::rule::structs::condition::{struct_matches, StructMatches};
+use crate::rule::impl_block::impl_matches;
+use crate::rule::structs::condition::struct_matches;
 use crate::rule::structs::{
-    AssertionConjunction, AssertionToken, ConditionToken, SimpleAssertions,
+    AssertionConjunction, AssertionToken, ConditionToken, SimpleAssertions, StructMatches,
     StructPredicateConjunctionBuilder,
 };
 use crate::rule::{ArchRule, CheckRule};
@@ -79,8 +80,16 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                     self.assertion_result.push_expected(&expected);
                     match_against.structs_that(|struct_| struct_.derives(&trait_))
                 }
-                ConditionToken::Implement(_) => {
-                    todo!("impl block not implemented yet")
+                ConditionToken::Implement(trait_) => {
+                    let expected = format!("implement {trait_}");
+                    self.assertion_result.push_expected(&expected);
+                    let imps = impl_matches().impl_that(|imp| match &imp.trait_impl {
+                        Some(t) if t.contains(&trait_) => true,
+                        _ => false,
+                    });
+                    let types = imps.types();
+                    println!("{:?}", types);
+                    match_against.structs_that(|struct_| types.contains(&struct_.ident.as_str()))
                 }
             };
 
@@ -108,9 +117,7 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                     SimpleAssertions::BePublic => self.assert_public(),
                     SimpleAssertions::BePrivate => self.assert_private(),
                     SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
-                    SimpleAssertions::Implement(_) => {
-                        todo!()
-                    }
+                    SimpleAssertions::Implement(trait_) => self.assert_implement(&trait_),
                     SimpleAssertions::Derive(trait_) => self.assert_derives(&trait_),
                     SimpleAssertions::OnlyHavePrivateFields => self.assert_private_fields(),
                     SimpleAssertions::OnlyHavePublicFields => self.assert_public_fields(),
@@ -239,6 +246,40 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
         }
     }
 
+    fn assert_implement(&mut self, trait_: &String) -> bool {
+        self.assertion_result
+            .push_expected(format!("implement '{trait_}'"));
+
+        let struct_without_expected_impl = self
+            .subject
+            .0
+            .iter()
+            .filter(|struct_| {
+                let imp_for_type =
+                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+                let imp_for_type = imp_for_type.impl_that(|imp| match &imp.trait_impl {
+                    Some(t) if t.contains(trait_) => true,
+                    _ => false,
+                });
+                imp_for_type.is_empty()
+            })
+            .collect::<Vec<_>>();
+
+        if !struct_without_expected_impl.is_empty() {
+            self.assertion_result.push_actual(&format!(
+                "the following structs does not implement '{trait_}':\n"
+            ));
+            struct_without_expected_impl.iter().for_each(|struct_| {
+                self.assertion_result
+                    .push_actual(format!("\t- {}\n", struct_.path))
+            });
+
+            false
+        } else {
+            true
+        }
+    }
+
     fn assert_private_fields(&mut self) -> bool {
         self.assertion_result
             .push_expected("only have private fields");
@@ -332,6 +373,26 @@ mod condition_test {
             .reside_in_a_module("assertion_result")
             .should()
             .only_have_public_fields()
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_filter_implementors() {
+        Structs::that()
+            .implement("Display")
+            .should()
+            .be_private()
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_check_implementation() {
+        Structs::that()
+            .have_simple_name("AssertionResult")
+            .should()
+            .implement("Debug")
             .check();
     }
 }

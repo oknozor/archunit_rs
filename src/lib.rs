@@ -10,3 +10,6 @@ pub mod assertion_result;
 pub mod ast;
 pub mod rule;
 use ast::ModuleTree;
+
+pub use rule::modules::Modules;
+pub use rule::structs::Structs;

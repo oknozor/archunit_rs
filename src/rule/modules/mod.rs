@@ -1,12 +1,25 @@
-use crate::rule::modules::condition::ModuleMatches;
+use crate::ast::ItemPath;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     DependencyPredicateConjunctionBuilder, PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
+use crate::ModuleTree;
+use std::collections::HashMap;
 
 mod check;
 mod condition;
 
+/// A unit struct giving access to module assertions:
+/// **Example:**
+/// ```rust
+/// use archunit_rs::rule::ArchRuleBuilder;
+/// use archunit_rs::rule::modules::Modules;
+///
+/// Modules::that()
+/// .have_simple_name("archunit_rs")
+/// .should()
+/// .be_public();
+/// ```
 #[derive(Debug)]
 pub struct Modules;
 
@@ -231,5 +244,14 @@ mod module_test {
             ]
             .iter(),
         )
+    }
+}
+
+#[derive(Default)]
+pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
+
+impl ModuleMatches {
+    pub fn extend(&mut self, other: ModuleMatches) {
+        self.0.extend(other.0);
     }
 }

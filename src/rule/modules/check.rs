@@ -1,5 +1,5 @@
 use crate::ast::{module_tree, ItemPath};
-use crate::rule::modules::condition::ModuleMatches;
+use crate::rule::modules::ModuleMatches;
 use crate::rule::modules::{
     AssertionConjunction, AssertionToken, ConditionToken, DependencyAssertion,
     DependencyAssertionConjunction, ModulePredicateConjunctionBuilder, SimpleAssertions,

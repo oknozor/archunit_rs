@@ -1,15 +1,8 @@
 use std::collections::HashMap;
 
 use crate::ast::{ItemPath, ModuleTree};
+use crate::rule::modules::ModuleMatches;
 
-#[derive(Default)]
-pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
-
-impl ModuleMatches {
-    pub fn extend(&mut self, other: ModuleMatches) {
-        self.0.extend(other.0);
-    }
-}
 impl ModuleTree {
     pub(crate) fn module_that<P>(&'static self, mut predicate: P) -> ModuleMatches
     where

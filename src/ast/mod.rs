@@ -1,102 +1,21 @@
 use std::fmt;
 use std::fmt::Formatter;
 
+use impl_blocks::Impl;
 use once_cell::sync::OnceCell;
-use syn::ItemStruct;
+use structs::Struct;
 
 use crate::ast::parse::ModuleAst;
 use crate::ast::visitor::{ModuleOrCrateRoot, SynModuleTree};
 
+pub mod impl_blocks;
 pub(crate) mod parse;
+pub mod structs;
 pub mod visitor;
 
 pub fn module_tree() -> &'static ModuleTree {
-    static INSTANCE: OnceCell<ModuleTree> = OnceCell::new();
-    INSTANCE.get_or_init(ModuleTree::load)
-}
-
-#[derive(Debug, PartialEq, Hash)]
-pub struct Struct {
-    pub ident: String,
-    pub derives: Vec<String>,
-    pub visibility: Visibility,
-    pub fields: Vec<Field>,
-    pub path: ItemPath,
-}
-
-impl From<(&syn::ItemStruct, &ItemPath)> for Struct {
-    fn from((struct_, path): (&ItemStruct, &ItemPath)) -> Self {
-        let ident = struct_.ident.to_string();
-        let path = path.join(&ident);
-        let derives = struct_
-            .attrs
-            .iter()
-            .filter_map(|attr| {
-                attr.path
-                    .get_ident()
-                    .map(|ident| ident.to_string())
-                    .filter(|ident| *ident == "derive")
-            })
-            .collect();
-
-        let fields = struct_.fields.iter().map(Field::from).collect();
-
-        Self {
-            ident,
-            derives,
-            visibility: Visibility::from_syn(&struct_.vis),
-            fields,
-            path,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Hash)]
-pub struct Field {
-    pub visibility: Visibility,
-    pub name: String,
-    pub type_: String,
-}
-
-impl From<&syn::Field> for Field {
-    fn from(field: &syn::Field) -> Self {
-        Self {
-            visibility: Visibility::from_syn(&field.vis),
-            // todo: replace unnamed field name with their index
-            name: field
-                .ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| "-".to_string()),
-            // todo: format this correctly
-            type_: format!("{:?}", field.ty),
-        }
-    }
-}
-
-impl Eq for Struct {}
-
-impl Struct {
-    pub fn is_public(&self) -> bool {
-        self.visibility == Visibility::Public
-    }
-
-    pub fn has_parent(&self, name: &str) -> bool {
-        self.path.has_parent(name)
-    }
-
-    pub fn derives(&self, trait_: &str) -> bool {
-        self.derives.contains(&trait_.to_string())
-    }
-
-    pub fn has_non_public_field(&self) -> bool {
-        let has_non_public_field = self
-            .fields
-            .iter()
-            .any(|field| !matches!(field.visibility, Visibility::Public));
-
-        has_non_public_field
-    }
+    static MODULE_TREE: OnceCell<ModuleTree> = OnceCell::new();
+    MODULE_TREE.get_or_init(ModuleTree::load)
 }
 
 #[derive(Debug)]
@@ -105,6 +24,7 @@ pub struct ModuleTree {
     pub ident: String,
     pub visibility: Visibility,
     pub structs: Vec<Struct>,
+    pub impl_blocks: Vec<Impl>,
     pub submodules: Vec<ModuleTree>,
 }
 
@@ -114,6 +34,9 @@ pub struct ItemPath {
 }
 
 impl ItemPath {
+    pub fn new(path: String) -> Self {
+        Self { inner: path }
+    }
     pub fn empty() -> Self {
         ItemPath {
             inner: "".to_string(),
@@ -148,6 +71,10 @@ impl ItemPath {
         } else {
             self.as_str()
         }
+    }
+
+    pub fn contains(&self, other: &str) -> bool {
+        self.inner.contains(other)
     }
 }
 
@@ -201,6 +128,7 @@ impl SynModuleTree<'_> {
         let ident = self.module.ident().to_string();
         let path = path.join(ident.as_str());
         let structs = self.module.structs(&path);
+        let impl_blocks = self.module.impls(&path);
 
         let submodules = self
             .submodules
@@ -213,6 +141,7 @@ impl SynModuleTree<'_> {
             ident,
             visibility,
             structs,
+            impl_blocks,
             submodules,
         }
     }

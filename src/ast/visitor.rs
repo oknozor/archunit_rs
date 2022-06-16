@@ -1,9 +1,11 @@
+use crate::ast::impl_blocks::Impl;
 use crate::ast::parse::ModuleAst;
-use crate::ast::{Field, ItemPath, Struct, Visibility};
+use crate::ast::structs::Struct;
+use crate::ast::ItemPath;
 use std::env;
 use syn::__private::Span;
 use syn::visit::Visit;
-use syn::{visit, File, Ident, Item, ItemMod, Meta, NestedMeta, VisPublic};
+use syn::{visit, File, Ident, Item, ItemMod, VisPublic};
 
 impl ModuleAst {
     pub fn visit_modules<'ast>(
@@ -78,6 +80,24 @@ impl ModuleOrFile<'_> {
         }
     }
 
+    pub fn impls(&self, path: &ItemPath) -> Vec<Impl> {
+        match self {
+            ModuleOrFile::InnerModule(module) => get_module_impls(module, path),
+            ModuleOrFile::SynFile(module, file) => {
+                let mut structs = get_files_impls(file, path);
+
+                match module {
+                    ModuleOrCrateRoot::CrateRoot => {}
+                    ModuleOrCrateRoot::Module(module) => {
+                        structs.extend(get_module_impls(module, path))
+                    }
+                };
+
+                structs
+            }
+        }
+    }
+
     pub fn structs(&self, path: &ItemPath) -> Vec<Struct> {
         match self {
             ModuleOrFile::InnerModule(module) => get_module_structs(module, path),
@@ -148,6 +168,20 @@ impl<'ast> Visit<'ast> for FileVisitor<'ast> {
     }
 }
 
+fn get_module_impls(module: &ItemMod, path: &ItemPath) -> Vec<Impl> {
+    if let Some((_, items)) = &module.content {
+        items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Impl(imp) => Some(Impl::from((imp, path))),
+                _ => None,
+            })
+            .collect()
+    } else {
+        vec![]
+    }
+}
+
 fn get_module_structs(module: &ItemMod, path: &ItemPath) -> Vec<Struct> {
     if let Some((_, items)) = &module.content {
         items
@@ -162,61 +196,21 @@ fn get_module_structs(module: &ItemMod, path: &ItemPath) -> Vec<Struct> {
     }
 }
 
+fn get_files_impls(file: &File, path: &ItemPath) -> Vec<Impl> {
+    file.items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Impl(imp) => Some(Impl::from((imp, path))),
+            _ => None,
+        })
+        .collect()
+}
+
 fn get_file_structs(file: &File, path: &ItemPath) -> Vec<Struct> {
     file.items
         .iter()
         .filter_map(|item| match item {
-            Item::Struct(struct_) => {
-                let ident = struct_.ident.to_string();
-                let path = path.join(&ident);
-                let fields = struct_.fields.iter().map(Field::from).collect();
-                let derives = struct_
-                    .attrs
-                    .iter()
-                    .filter(|attr| {
-                        attr.path
-                            .get_ident()
-                            .map(|ident| ident.to_string())
-                            .map(|ident| ident == "derive")
-                            .unwrap_or(false)
-                    })
-                    .filter_map(|attr| {
-                        let attr = attr.parse_meta().expect("failed to parse derive attribute");
-
-                        match attr {
-                            Meta::List(list) => {
-                                let derives: Vec<String> = list
-                                    .nested
-                                    .iter()
-                                    .filter_map(|nested| match nested {
-                                        NestedMeta::Meta(meta) => match meta {
-                                            Meta::Path(path) => Some(
-                                                path.segments
-                                                    .iter()
-                                                    .map(|segment| segment.ident.to_string()),
-                                            ),
-                                            _ => None,
-                                        },
-                                        NestedMeta::Lit(_) => None,
-                                    })
-                                    .flatten()
-                                    .collect();
-                                Some(derives)
-                            }
-                            _ => None,
-                        }
-                    })
-                    .flatten()
-                    .collect();
-
-                Some(Struct {
-                    ident,
-                    derives,
-                    visibility: Visibility::from_syn(&struct_.vis),
-                    fields,
-                    path,
-                })
-            }
+            Item::Struct(struct_) => Some(Struct::from((struct_, path))),
             _ => None,
         })
         .collect()

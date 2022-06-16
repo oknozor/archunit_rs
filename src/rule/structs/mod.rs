@@ -1,21 +1,43 @@
-use crate::rule::structs::condition::StructMatches;
+use crate::ast::structs::Struct;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
+use std::collections::HashSet;
 
 mod check;
 mod condition;
 
+/// A unit struct giving access to struct assertions.
+///
+/// **Example:**
+/// ```rust
+/// use archunit_rs::rule::ArchRuleBuilder;
+/// use archunit_rs::rule::structs::Structs;
+///
+/// Structs::that()
+/// .have_simple_name("PredicateBuilder")
+/// .should()
+/// .only_have_private_fields()
+/// .and_should()
+/// .be_public();
+/// ```
 #[derive(Debug)]
 pub struct Structs;
 
 impl ArchRuleBuilder<ConditionToken, AssertionToken, StructMatches> for Structs {}
 
+/// Type alias for `[ConditionBuilder]` struct implementation.
 pub type StructConditionBuilder = ConditionBuilder<ConditionToken, AssertionToken, StructMatches>;
+
+/// Type alias for`[ConditionConjunctionBuilder]` struct implementation.
 pub type StructConditionConjunctionBuilder =
     ConditionConjunctionBuilder<ConditionToken, AssertionToken, StructMatches>;
+
+/// Type alias for `[PredicateBuilder]` struct implementation.
 pub type StructPredicateBuilder = PredicateBuilder<ConditionToken, AssertionToken, StructMatches>;
+
+/// Type alias for `[PredicateConjunctionBuilder]` struct implementation.
 pub type StructPredicateConjunctionBuilder =
     PredicateConjunctionBuilder<ConditionToken, AssertionToken, StructMatches>;
 
@@ -60,6 +82,7 @@ pub enum AssertionConjunction {
 }
 
 impl StructConditionBuilder {
+    /// filter struct that resides in the given module
     pub fn reside_in_a_module(mut self, module: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
@@ -67,6 +90,7 @@ impl StructConditionBuilder {
         ConditionConjunctionBuilder(self.0)
     }
 
+    /// filter struct that are declared public
     pub fn are_declared_public(mut self) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
@@ -74,6 +98,7 @@ impl StructConditionBuilder {
         ConditionConjunctionBuilder(self.0)
     }
 
+    /// filter struct with restricted visibility
     pub fn are_declared_private(mut self) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
@@ -81,6 +106,7 @@ impl StructConditionBuilder {
         ConditionConjunctionBuilder(self.0)
     }
 
+    /// filter struct with the given name
     pub fn have_simple_name(mut self, name: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
@@ -88,6 +114,7 @@ impl StructConditionBuilder {
         ConditionConjunctionBuilder(self.0)
     }
 
+    /// filter struct that derives the given trait
     pub fn derives(mut self, trait_name: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
@@ -95,6 +122,7 @@ impl StructConditionBuilder {
         ConditionConjunctionBuilder(self.0)
     }
 
+    /// filter struct that implement the given trait
     pub fn implement(mut self, trait_name: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
@@ -104,16 +132,19 @@ impl StructConditionBuilder {
 }
 
 impl StructConditionConjunctionBuilder {
+    /// `And` conjunction for struct conditions.
     pub fn and(mut self) -> StructConditionBuilder {
         self.0.conditions.push_front(ConditionToken::And);
         ConditionBuilder(self.0)
     }
 
+    /// `Or` conjunction for struct conditions.
     pub fn or(mut self) -> StructConditionBuilder {
         self.0.conditions.push_front(ConditionToken::Or);
         ConditionBuilder(self.0)
     }
 
+    /// Apply the current conditions.
     pub fn should(mut self) -> StructPredicateBuilder {
         self.0.conditions.push_front(ConditionToken::Should);
         PredicateBuilder(self.0)
@@ -121,6 +152,7 @@ impl StructConditionConjunctionBuilder {
 }
 
 impl StructPredicateBuilder {
+    /// Predicate matching structs with the given name.
     pub fn have_simple_name(mut self, name: &str) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -130,6 +162,7 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
+    /// Predicate matching public structs.
     pub fn be_public(mut self) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -137,6 +170,7 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
+    /// Predicate matching private structs.
     pub fn be_private(mut self) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -144,6 +178,7 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
+    /// Predicate matching struct implementing the given trait.
     pub fn implement(mut self, trait_name: &str) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -154,6 +189,7 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
+    /// Predicate matching struct which derives the given trait.
     pub fn derive(mut self, trait_name: &str) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -164,6 +200,7 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
+    /// Predicate matching struct which no public fields.
     pub fn only_have_private_fields(mut self) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -174,6 +211,7 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
+    /// Predicate matching struct without restricted visibility fields
     pub fn only_have_public_fields(mut self) -> StructPredicateConjunctionBuilder {
         self.0
             .assertions
@@ -186,6 +224,7 @@ impl StructPredicateBuilder {
 }
 
 impl StructPredicateConjunctionBuilder {
+    /// Combine two predicate with`And` conjunction.
     pub fn and_should(mut self) -> StructPredicateBuilder {
         self.0
             .assertions
@@ -193,6 +232,7 @@ impl StructPredicateConjunctionBuilder {
         PredicateBuilder(self.0)
     }
 
+    /// Combine two predicate with the `Or` conjunction.
     pub fn or_should(mut self) -> StructPredicateBuilder {
         self.0
             .assertions
@@ -267,5 +307,30 @@ mod test {
             ]
             .iter(),
         )
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct StructMatches(pub(crate) HashSet<&'static Struct>);
+
+impl StructMatches {
+    pub fn structs_that<P>(&self, mut predicate: P) -> StructMatches
+    where
+        P: FnMut(&Struct) -> bool,
+    {
+        let mut set = HashSet::new();
+        self.0
+            .iter()
+            .copied()
+            .filter(|struct_| predicate(struct_))
+            .for_each(|struct_| {
+                set.insert(struct_);
+            });
+
+        StructMatches(set)
+    }
+
+    pub fn extends(&mut self, other: StructMatches) {
+        self.0.extend(other.0)
     }
 }
