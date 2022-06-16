@@ -1,9 +1,9 @@
 use crate::ast::parse::ModuleAst;
-use crate::ast::{ItemPath, Struct, Visibility};
+use crate::ast::{Field, ItemPath, Struct, Visibility};
 use std::env;
 use syn::__private::Span;
 use syn::visit::Visit;
-use syn::{visit, File, Ident, Item, ItemMod, VisPublic};
+use syn::{visit, File, Ident, Item, ItemMod, Meta, NestedMeta, VisPublic};
 
 impl ModuleAst {
     pub fn visit_modules<'ast>(
@@ -152,21 +152,9 @@ fn get_module_structs(module: &ItemMod, path: &ItemPath) -> Vec<Struct> {
     if let Some((_, items)) = &module.content {
         items
             .iter()
-            .filter_map(|item| {
-                match item {
-                    Item::Struct(struct_) => {
-                        let ident = struct_.ident.to_string();
-                        let path = path.join(&ident);
-                        Some(Struct {
-                            ident,
-                            // TODO
-                            derives: vec![],
-                            visibility: Visibility::from_ast(&struct_.vis),
-                            path,
-                        })
-                    }
-                    _ => None,
-                }
+            .filter_map(|item| match item {
+                Item::Struct(struct_) => Some(Struct::from((struct_, path))),
+                _ => None,
             })
             .collect()
     } else {
@@ -181,11 +169,51 @@ fn get_file_structs(file: &File, path: &ItemPath) -> Vec<Struct> {
             Item::Struct(struct_) => {
                 let ident = struct_.ident.to_string();
                 let path = path.join(&ident);
+                let fields = struct_.fields.iter().map(Field::from).collect();
+                let derives = struct_
+                    .attrs
+                    .iter()
+                    .filter(|attr| {
+                        attr.path
+                            .get_ident()
+                            .map(|ident| ident.to_string())
+                            .map(|ident| ident == "derive")
+                            .unwrap_or(false)
+                    })
+                    .filter_map(|attr| {
+                        let attr = attr.parse_meta().expect("failed to parse derive attribute");
+
+                        match attr {
+                            Meta::List(list) => {
+                                let derives: Vec<String> = list
+                                    .nested
+                                    .iter()
+                                    .filter_map(|nested| match nested {
+                                        NestedMeta::Meta(meta) => match meta {
+                                            Meta::Path(path) => Some(
+                                                path.segments
+                                                    .iter()
+                                                    .map(|segment| segment.ident.to_string()),
+                                            ),
+                                            _ => None,
+                                        },
+                                        NestedMeta::Lit(_) => None,
+                                    })
+                                    .flatten()
+                                    .collect();
+                                Some(derives)
+                            }
+                            _ => None,
+                        }
+                    })
+                    .flatten()
+                    .collect();
+
                 Some(Struct {
                     ident,
-                    // TODO
-                    derives: vec![],
-                    visibility: Visibility::from_ast(&struct_.vis),
+                    derives,
+                    visibility: Visibility::from_syn(&struct_.vis),
+                    fields,
                     path,
                 })
             }

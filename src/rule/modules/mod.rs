@@ -20,6 +20,7 @@ pub type ModulePredicateConjunctionBuilder =
     PredicateConjunctionBuilder<ConditionToken, AssertionToken, ModuleMatches>;
 
 impl Condition for ConditionToken {}
+
 impl Assertion for AssertionToken {}
 
 impl Subject for ModuleMatches {}

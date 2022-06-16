@@ -53,8 +53,6 @@ impl ModuleTree {
 #[cfg(test)]
 mod condition_test {
     use crate::rule::structs::condition::struct_matches;
-    use crate::rule::structs::Structs;
-    use crate::rule::{ArchRuleBuilder, CheckRule};
 
     #[test]
     fn should_check_assertion() {

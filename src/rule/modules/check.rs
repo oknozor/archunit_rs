@@ -114,77 +114,9 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
         while let Some(assertion) = self.assertions.pop_back() {
             let assertion_outcome = match assertion {
                 AssertionToken::SimpleAssertion(assertion) => match assertion {
-                    SimpleAssertions::BePublic => {
-                        self.assertion_result.push_expected("be public");
-                        let non_public_modules = self
-                            .subject
-                            .0
-                            .values()
-                            .filter(|module| !module.is_public())
-                            .collect::<Vec<_>>();
-
-                        if !non_public_modules.is_empty() {
-                            self.assertion_result
-                                .push_actual("the following modules are not public:\n");
-                            non_public_modules.iter().for_each(|module| {
-                                self.assertion_result.push_actual(format!(
-                                    "\t{} - visibility : {:?}\n",
-                                    module.path, module.visibility
-                                ))
-                            });
-
-                            false
-                        } else {
-                            true
-                        }
-                    }
-                    SimpleAssertions::BePrivate => {
-                        self.assertion_result.push_expected("be private");
-                        let public_modules = self
-                            .subject
-                            .0
-                            .values()
-                            .filter(|module| module.is_public())
-                            .collect::<Vec<_>>();
-
-                        if !public_modules.is_empty() {
-                            self.assertion_result
-                                .push_actual("the following modules are public:\n");
-                            public_modules.iter().for_each(|module| {
-                                self.assertion_result.push_actual(format!(
-                                    "\t{} - visibility : {:?}\n",
-                                    module.path, module.visibility
-                                ))
-                            });
-
-                            false
-                        } else {
-                            true
-                        }
-                    }
-                    SimpleAssertions::HaveSimpleName(name) => {
-                        self.assertion_result
-                            .push_expected(format!("have simple name '{}'", name));
-                        let module_with_non_matching_name = self
-                            .subject
-                            .0
-                            .values()
-                            .filter(|module| module.ident != name)
-                            .collect::<Vec<_>>();
-
-                        if !module_with_non_matching_name.is_empty() {
-                            self.assertion_result
-                                .push_actual("the following modules have a different name:\n");
-                            module_with_non_matching_name.iter().for_each(|module| {
-                                self.assertion_result
-                                    .push_actual(format!("{}\n", module.path))
-                            });
-
-                            false
-                        } else {
-                            true
-                        }
-                    }
+                    SimpleAssertions::BePublic => self.assert_public(),
+                    SimpleAssertions::BePrivate => self.assert_private(),
+                    SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
                 },
                 AssertionToken::Conjunction(a) => match a {
                     AssertionConjunction::AndShould => {
@@ -218,6 +150,82 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
 
         if !success {
             panic!("\n{}", self.assertion_result)
+        }
+    }
+}
+
+impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
+    fn assert_public(&mut self) -> bool {
+        self.assertion_result.push_expected("be public");
+        let non_public_modules = self
+            .subject
+            .0
+            .values()
+            .filter(|module| !module.is_public())
+            .collect::<Vec<_>>();
+
+        if !non_public_modules.is_empty() {
+            self.assertion_result
+                .push_actual("the following modules are not public:\n");
+            non_public_modules.iter().for_each(|module| {
+                self.assertion_result.push_actual(format!(
+                    "\t{} - visibility : {:?}\n",
+                    module.path, module.visibility
+                ))
+            });
+
+            false
+        } else {
+            true
+        }
+    }
+
+    fn assert_private(&mut self) -> bool {
+        self.assertion_result.push_expected("be private");
+        let public_modules = self
+            .subject
+            .0
+            .values()
+            .filter(|module| module.is_public())
+            .collect::<Vec<_>>();
+
+        if !public_modules.is_empty() {
+            self.assertion_result
+                .push_actual("the following modules are public:\n");
+            public_modules.iter().for_each(|module| {
+                self.assertion_result.push_actual(format!(
+                    "\t{} - visibility : {:?}\n",
+                    module.path, module.visibility
+                ))
+            });
+
+            false
+        } else {
+            true
+        }
+    }
+
+    fn assert_simple_name(&mut self, name: String) -> bool {
+        self.assertion_result
+            .push_expected(format!("have simple name '{}'", name));
+        let module_with_non_matching_name = self
+            .subject
+            .0
+            .values()
+            .filter(|module| module.ident != name)
+            .collect::<Vec<_>>();
+
+        if !module_with_non_matching_name.is_empty() {
+            self.assertion_result
+                .push_actual("the following modules have a different name:\n");
+            module_with_non_matching_name.iter().for_each(|module| {
+                self.assertion_result
+                    .push_actual(format!("{}\n", module.path))
+            });
+
+            false
+        } else {
+            true
         }
     }
 }
