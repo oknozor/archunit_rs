@@ -54,7 +54,9 @@ impl From<(&ItemStruct, &ItemPath)> for Struct {
             .flatten()
             .collect();
 
-        let fields = struct_.fields.iter().map(Field::from).collect();
+        let fields = struct_.fields.iter()
+            .enumerate()
+            .map(Field::from).collect();
 
         Self {
             ident,
@@ -73,16 +75,15 @@ pub struct Field {
     pub type_: String,
 }
 
-impl From<&syn::Field> for Field {
-    fn from(field: &syn::Field) -> Self {
+impl From<(usize, &syn::Field)> for Field {
+    fn from((idx, field): (usize, &syn::Field)) -> Self {
         Self {
             visibility: Visibility::from_syn(&field.vis),
-            // todo: replace unnamed field name with their index
             name: field
                 .ident
                 .as_ref()
                 .map(|ident| ident.to_string())
-                .unwrap_or_else(|| "-".to_string()),
+                .unwrap_or_else(|| idx.to_string()),
             // todo: format this correctly
             type_: format!("{:?}", field.ty),
         }
