@@ -68,6 +68,29 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .flat_map(|module| module.module_that(|sub| sub.ident == name).0)
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
+                ConditionToken::HaveSimpleEndingWith(pattern) => {
+                    self.assertion_result
+                        .push_expected(format!("have simple name ending with '{}'", pattern));
+                    match_against
+                        .0
+                        .values()
+                        .flat_map(|module| {
+                            module.module_that(|sub| sub.ident.ends_with(&pattern)).0
+                        })
+                        .collect::<HashMap<&ItemPath, &ModuleTree>>()
+                }
+                ConditionToken::HaveSimpleStartingWith(pattern) => {
+                    self.assertion_result
+                        .push_expected(format!("have simple name starting with '{}'", &pattern));
+
+                    match_against
+                        .0
+                        .values()
+                        .flat_map(|module| {
+                            module.module_that(|sub| sub.ident.starts_with(&pattern)).0
+                        })
+                        .collect::<HashMap<&ItemPath, &ModuleTree>>()
+                }
                 ConditionToken::ResidesInAModule(name) => {
                     self.assertion_result
                         .push_expected(format!("resides in a modules named '{}'", name));

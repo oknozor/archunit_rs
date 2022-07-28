@@ -1,74 +1,74 @@
-use crate::ast::structs::Struct;
+mod check;
+mod condition;
+
+use crate::ast::enums::Enum;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
 use std::collections::HashSet;
 
-pub mod check;
-pub mod condition;
-
-/// A unit struct giving access to struct assertions.
+/// A unit enum giving access to enum assertions.
 ///
 /// **Example:**
 /// ```rust
 /// use archunit_rs::rule::ArchRuleBuilder;
-/// use archunit_rs::rule::structs::Structs;
+/// use archunit_rs::rule::enums::Enums;
 ///
-/// Structs::that()
-/// .have_simple_name("PredicateBuilder")
+/// Enums::that()
+/// .have_simple_name("ConditionToken")
 /// .should()
-/// .only_have_private_fields()
-/// .and_should()
 /// .be_public();
 /// ```
 #[derive(Debug)]
-pub struct Structs;
+pub struct Enums;
 
 #[derive(Debug, Default)]
-pub struct StructMatches(pub(crate) HashSet<&'static Struct>);
+pub struct EnumMatches(pub(crate) HashSet<&'static Enum>);
 
-impl StructMatches {
-    pub fn structs_that<P>(&self, mut predicate: P) -> StructMatches
+impl EnumMatches {
+    pub fn enums_that<P>(&self, mut predicate: P) -> EnumMatches
     where
-        P: FnMut(&Struct) -> bool,
+        P: FnMut(&Enum) -> bool,
     {
         let mut set = HashSet::new();
         self.0
             .iter()
             .copied()
-            .filter(|struct_| predicate(struct_))
-            .for_each(|struct_| {
-                set.insert(struct_);
+            .filter(|enum_| predicate(enum_))
+            .for_each(|enum_| {
+                set.insert(enum_);
             });
 
-        StructMatches(set)
+        EnumMatches(set)
     }
 
-    pub fn extends(&mut self, other: StructMatches) {
+    pub fn extends(&mut self, other: EnumMatches) {
         self.0.extend(other.0)
     }
 }
 
-impl ArchRuleBuilder<ConditionToken, AssertionToken, StructMatches> for Structs {}
+impl ArchRuleBuilder<ConditionToken, AssertionToken, EnumMatches> for Enums {}
 
-/// Type alias for `[ConditionBuilder]` struct implementation.
-pub type StructConditionBuilder = ConditionBuilder<ConditionToken, AssertionToken, StructMatches>;
+/// Type alias for `[ConditionBuilder]` enum implementation.
+pub type EnumConditionBuilder = ConditionBuilder<ConditionToken, AssertionToken, EnumMatches>;
 
-/// Type alias for`[ConditionConjunctionBuilder]` struct implementation.
-pub type StructConditionConjunctionBuilder =
-    ConditionConjunctionBuilder<ConditionToken, AssertionToken, StructMatches>;
+/// Type alias for`[ConditionConjunctionBuilder]` enum implementation.
+pub type EnumConditionConjunctionBuilder =
+    ConditionConjunctionBuilder<ConditionToken, AssertionToken, EnumMatches>;
 
-/// Type alias for `[PredicateBuilder]` struct implementation.
-pub type StructPredicateBuilder = PredicateBuilder<ConditionToken, AssertionToken, StructMatches>;
+/// Type alias for `[PredicateBuilder]` enum implementation.
+pub type EnumPredicateBuilder = PredicateBuilder<ConditionToken, AssertionToken, EnumMatches>;
 
-/// Type alias for `[PredicateConjunctionBuilder]` struct implementation.
-pub type StructPredicateConjunctionBuilder =
-    PredicateConjunctionBuilder<ConditionToken, AssertionToken, StructMatches>;
+/// Type alias for `[PredicateConjunctionBuilder]` enum implementation.
+pub type EnumPredicateConjunctionBuilder =
+    PredicateConjunctionBuilder<ConditionToken, AssertionToken, EnumMatches>;
 
 impl Condition for ConditionToken {}
+
 impl Assertion for AssertionToken {}
-impl Subject for StructMatches {}
+
+impl Subject for EnumMatches {}
 
 #[derive(Debug, PartialEq)]
 pub enum ConditionToken {
@@ -96,8 +96,6 @@ pub enum SimpleAssertions {
     HaveSimpleName(String),
     Implement(String),
     Derive(String),
-    OnlyHavePrivateFields,
-    OnlyHavePublicFields,
 }
 
 #[derive(Debug, PartialEq)]
@@ -106,49 +104,49 @@ pub enum AssertionConjunction {
     OrShould,
 }
 
-impl StructConditionBuilder {
-    /// filter struct that resides in the given module
-    pub fn reside_in_a_module(mut self, module: &str) -> StructConditionConjunctionBuilder {
+impl EnumConditionBuilder {
+    /// filter enum that resides in the given module
+    pub fn reside_in_a_module(mut self, module: &str) -> EnumConditionConjunctionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::ResidesInAModule(module.to_string()));
         ConditionConjunctionBuilder(self.0)
     }
 
-    /// filter struct that are declared public
-    pub fn are_declared_public(mut self) -> StructConditionConjunctionBuilder {
+    /// filter enum that are declared public
+    pub fn are_declared_public(mut self) -> EnumConditionConjunctionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::AreDeclaredPublic);
         ConditionConjunctionBuilder(self.0)
     }
 
-    /// filter struct with restricted visibility
-    pub fn are_declared_private(mut self) -> StructConditionConjunctionBuilder {
+    /// filter enum with restricted visibility
+    pub fn are_declared_private(mut self) -> EnumConditionConjunctionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::AreDeclaredPrivate);
         ConditionConjunctionBuilder(self.0)
     }
 
-    /// filter struct with the given name
-    pub fn have_simple_name(mut self, name: &str) -> StructConditionConjunctionBuilder {
+    /// filter enum with the given name
+    pub fn have_simple_name(mut self, name: &str) -> EnumConditionConjunctionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::HaveSimpleName(name.to_string()));
         ConditionConjunctionBuilder(self.0)
     }
 
-    /// filter struct that derives the given trait
-    pub fn derives(mut self, trait_name: &str) -> StructConditionConjunctionBuilder {
+    /// filter enum that derives the given trait
+    pub fn derives(mut self, trait_name: &str) -> EnumConditionConjunctionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::Derives(trait_name.to_string()));
         ConditionConjunctionBuilder(self.0)
     }
 
-    /// filter struct that implement the given trait
-    pub fn implement(mut self, trait_name: &str) -> StructConditionConjunctionBuilder {
+    /// filter enum that implement the given trait
+    pub fn implement(mut self, trait_name: &str) -> EnumConditionConjunctionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::Implement(trait_name.to_string()));
@@ -156,29 +154,29 @@ impl StructConditionBuilder {
     }
 }
 
-impl StructConditionConjunctionBuilder {
-    /// `And` conjunction for struct conditions.
-    pub fn and(mut self) -> StructConditionBuilder {
+impl EnumConditionConjunctionBuilder {
+    /// `And` conjunction for enum conditions.
+    pub fn and(mut self) -> EnumConditionBuilder {
         self.0.conditions.push_front(ConditionToken::And);
         ConditionBuilder(self.0)
     }
 
-    /// `Or` conjunction for struct conditions.
-    pub fn or(mut self) -> StructConditionBuilder {
+    /// `Or` conjunction for enum conditions.
+    pub fn or(mut self) -> EnumConditionBuilder {
         self.0.conditions.push_front(ConditionToken::Or);
         ConditionBuilder(self.0)
     }
 
     /// Apply the current conditions.
-    pub fn should(mut self) -> StructPredicateBuilder {
+    pub fn should(mut self) -> EnumPredicateBuilder {
         self.0.conditions.push_front(ConditionToken::Should);
         PredicateBuilder(self.0)
     }
 }
 
-impl StructPredicateBuilder {
+impl EnumPredicateBuilder {
     /// Predicate matching structs with the given name.
-    pub fn have_simple_name(mut self, name: &str) -> StructPredicateConjunctionBuilder {
+    pub fn have_simple_name(mut self, name: &str) -> EnumPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
@@ -188,7 +186,7 @@ impl StructPredicateBuilder {
     }
 
     /// Predicate matching public structs.
-    pub fn be_public(mut self) -> StructPredicateConjunctionBuilder {
+    pub fn be_public(mut self) -> EnumPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(SimpleAssertions::BePublic));
@@ -196,15 +194,15 @@ impl StructPredicateBuilder {
     }
 
     /// Predicate matching private structs.
-    pub fn be_private(mut self) -> StructPredicateConjunctionBuilder {
+    pub fn be_private(mut self) -> EnumPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(SimpleAssertions::BePrivate));
         PredicateConjunctionBuilder(self.0)
     }
 
-    /// Predicate matching struct implementing the given trait.
-    pub fn implement(mut self, trait_name: &str) -> StructPredicateConjunctionBuilder {
+    /// Predicate matching enum implementing the given trait.
+    pub fn implement(mut self, trait_name: &str) -> EnumPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
@@ -214,8 +212,8 @@ impl StructPredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
-    /// Predicate matching struct which derives the given trait.
-    pub fn derive(mut self, trait_name: &str) -> StructPredicateConjunctionBuilder {
+    /// Predicate matching enum which derives the given trait.
+    pub fn derive(mut self, trait_name: &str) -> EnumPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(SimpleAssertions::Derive(
@@ -224,33 +222,11 @@ impl StructPredicateBuilder {
 
         PredicateConjunctionBuilder(self.0)
     }
-
-    /// Predicate matching struct which no public fields.
-    pub fn only_have_private_fields(mut self) -> StructPredicateConjunctionBuilder {
-        self.0
-            .assertions
-            .push_front(AssertionToken::SimpleAssertion(
-                SimpleAssertions::OnlyHavePrivateFields,
-            ));
-
-        PredicateConjunctionBuilder(self.0)
-    }
-
-    /// Predicate matching struct without restricted visibility fields
-    pub fn only_have_public_fields(mut self) -> StructPredicateConjunctionBuilder {
-        self.0
-            .assertions
-            .push_front(AssertionToken::SimpleAssertion(
-                SimpleAssertions::OnlyHavePublicFields,
-            ));
-
-        PredicateConjunctionBuilder(self.0)
-    }
 }
 
-impl StructPredicateConjunctionBuilder {
+impl EnumPredicateConjunctionBuilder {
     /// Combine two predicate with`And` conjunction.
-    pub fn and_should(mut self) -> StructPredicateBuilder {
+    pub fn and_should(mut self) -> EnumPredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::Conjunction(AssertionConjunction::AndShould));
@@ -258,7 +234,7 @@ impl StructPredicateConjunctionBuilder {
     }
 
     /// Combine two predicate with the `Or` conjunction.
-    pub fn or_should(mut self) -> StructPredicateBuilder {
+    pub fn or_should(mut self) -> EnumPredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::Conjunction(AssertionConjunction::OrShould));
@@ -268,14 +244,15 @@ impl StructPredicateConjunctionBuilder {
 
 #[cfg(test)]
 mod test {
-    use crate::rule::structs::ConditionToken;
-    use crate::rule::structs::{AssertionConjunction, AssertionToken, SimpleAssertions, Structs};
+    use crate::rule::enums::{
+        AssertionConjunction, AssertionToken, ConditionToken, Enums, SimpleAssertions,
+    };
     use crate::rule::ArchRuleBuilder;
     use speculoos::prelude::*;
 
     #[test]
     fn should_build_arch_rule_for_struct() {
-        let rule = Structs::that()
+        let rule = Enums::that()
             .derives("Debug")
             .and()
             .implement("Display")
@@ -292,11 +269,7 @@ mod test {
             .and_should()
             .have_simple_name("Name")
             .or_should()
-            .be_private()
-            .or_should()
-            .only_have_private_fields()
-            .or_should()
-            .only_have_public_fields();
+            .be_private();
 
         assert_that!(rule.0.conditions.iter()).equals_iterator(
             &[
@@ -316,10 +289,6 @@ mod test {
 
         assert_that!(rule.0.assertions.iter()).equals_iterator(
             &[
-                AssertionToken::SimpleAssertion(SimpleAssertions::OnlyHavePublicFields),
-                AssertionToken::Conjunction(AssertionConjunction::OrShould),
-                AssertionToken::SimpleAssertion(SimpleAssertions::OnlyHavePrivateFields),
-                AssertionToken::Conjunction(AssertionConjunction::OrShould),
                 AssertionToken::SimpleAssertion(SimpleAssertions::BePrivate),
                 AssertionToken::Conjunction(AssertionConjunction::OrShould),
                 AssertionToken::SimpleAssertion(SimpleAssertions::HaveSimpleName(

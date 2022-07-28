@@ -15,7 +15,7 @@ fn arch_rules() {
     Structs::that()
         .implement("Display")
         .should()
-        .public()
+        .be_public()
         .check();
 
     Modules::that()

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 
+use crate::ast::enums::Enum;
 use impl_blocks::Impl;
 use once_cell::sync::OnceCell;
 use structs::Struct;
@@ -8,6 +9,7 @@ use structs::Struct;
 use crate::ast::parse::ModuleAst;
 use crate::ast::visitor::{ModuleOrCrateRoot, SynModuleTree};
 
+pub mod enums;
 pub mod impl_blocks;
 pub(crate) mod parse;
 pub mod structs;
@@ -24,6 +26,7 @@ pub struct ModuleTree {
     pub ident: String,
     pub visibility: Visibility,
     pub structs: Vec<Struct>,
+    pub enums: Vec<Enum>,
     pub impl_blocks: Vec<Impl>,
     pub submodules: Vec<ModuleTree>,
 }
@@ -128,6 +131,7 @@ impl SynModuleTree<'_> {
         let ident = self.module.ident().to_string();
         let path = path.join(ident.as_str());
         let structs = self.module.structs(&path);
+        let enums = self.module.enums(&path);
         let impl_blocks = self.module.impls(&path);
 
         let submodules = self
@@ -141,6 +145,7 @@ impl SynModuleTree<'_> {
             ident,
             visibility,
             structs,
+            enums,
             impl_blocks,
             submodules,
         }

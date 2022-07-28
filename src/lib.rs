@@ -1,8 +1,12 @@
 // TODO :
 //   - [x] load every file in the crate
-//   - implement the architecture layer assertions
+//   - [ ] implement the architecture layer assertions
 //   - [x] implement visibility assertion
-//   - implement function/struct/enum/modules matchers
+//   - implement
+//     - [ ] fn
+//     - [x] struct
+//     - [x] enum
+//     - [x] modules
 
 extern crate core;
 

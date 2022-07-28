@@ -23,6 +23,15 @@ mod condition;
 #[derive(Debug)]
 pub struct Modules;
 
+#[derive(Default)]
+pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
+
+impl ModuleMatches {
+    pub fn extend(&mut self, other: ModuleMatches) {
+        self.0.extend(other.0);
+    }
+}
+
 pub type ModuleConditionBuilder = ConditionBuilder<ConditionToken, AssertionToken, ModuleMatches>;
 pub type ModuleConditionConjunctionBuilder =
     ConditionConjunctionBuilder<ConditionToken, AssertionToken, ModuleMatches>;
@@ -44,6 +53,8 @@ pub enum ConditionToken {
     ResidesInAModule(String),
     AreDeclaredPrivate,
     HaveSimpleName(String),
+    HaveSimpleEndingWith(String),
+    HaveSimpleStartingWith(String),
     And,
     Or,
     Should,
@@ -153,7 +164,9 @@ impl ModulePredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
-    pub fn only_have_dependency_module(mut self) -> ModuleDependencyPredicateConjunctionBuilder {
+    pub fn only_have_dependency_module_that(
+        mut self,
+    ) -> ModuleDependencyPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::DependencyAssertionConjunction(
@@ -186,6 +199,7 @@ impl ModuleDependencyPredicateConjunctionBuilder {
             .push_front(AssertionToken::DependencyAssertion(
                 DependencyAssertion::That,
             ));
+
         PredicateBuilder(self.0)
     }
 }
@@ -208,7 +222,7 @@ mod module_test {
             .or()
             .are_declared_public()
             .should()
-            .only_have_dependency_module()
+            .only_have_dependency_module_that()
             .that()
             .have_simple_name("toto")
             .and_should()
@@ -244,14 +258,5 @@ mod module_test {
             ]
             .iter(),
         )
-    }
-}
-
-#[derive(Default)]
-pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
-
-impl ModuleMatches {
-    pub fn extend(&mut self, other: ModuleMatches) {
-        self.0.extend(other.0);
     }
 }

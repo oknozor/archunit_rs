@@ -2,9 +2,11 @@ use crate::assertion_result::AssertionResult;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
+pub mod enums;
 pub mod impl_block;
 pub mod modules;
 pub mod structs;
+
 #[derive(Debug)]
 pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug, S: Subject> {
     pub(crate) conditions: VecDeque<C>,
@@ -91,6 +93,7 @@ where
 }
 
 pub trait ArchRuleBuilder<C: Condition, P: Assertion, S: Subject>: Sized {
+    /// Builder function for arch rule assertions, see [`ConditionBuilder`].
     fn that() -> ConditionBuilder<C, P, S> {
         ConditionBuilder(ArchRule::<C, P, S>::new())
     }

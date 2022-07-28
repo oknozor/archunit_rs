@@ -1,4 +1,5 @@
 use crate::ast::module_tree;
+use crate::rule::enums::EnumMatches;
 use crate::rule::structs::StructMatches;
 use crate::ModuleTree;
 use once_cell::sync::OnceCell;
@@ -7,6 +8,11 @@ use std::collections::HashSet;
 pub(crate) fn struct_matches() -> &'static StructMatches {
     static MODULE_TREE: OnceCell<StructMatches> = OnceCell::new();
     MODULE_TREE.get_or_init(|| module_tree().flatten_structs())
+}
+
+pub(crate) fn enum_matches() -> &'static EnumMatches {
+    static MODULE_TREE: OnceCell<EnumMatches> = OnceCell::new();
+    MODULE_TREE.get_or_init(|| module_tree().flatten_enums())
 }
 
 impl ModuleTree {
@@ -23,6 +29,21 @@ impl ModuleTree {
             .for_each(|(_, module)| structs.extend(module.flatten_structs().0));
 
         StructMatches(structs)
+    }
+
+    pub(crate) fn flatten_enums(&'static self) -> EnumMatches {
+        let mut enums = HashSet::new();
+
+        self.enums.iter().for_each(|enum_| {
+            enums.insert(enum_);
+        });
+
+        self.submodules
+            .iter()
+            .flat_map(|sub| sub.flatten().0)
+            .for_each(|(_, module)| enums.extend(module.flatten_enums().0));
+
+        EnumMatches(enums)
     }
 }
 

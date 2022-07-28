@@ -1,3 +1,4 @@
+use crate::ast::enums::Enum;
 use crate::ast::impl_blocks::Impl;
 use crate::ast::parse::ModuleAst;
 use crate::ast::structs::Struct;
@@ -115,6 +116,24 @@ impl ModuleOrFile<'_> {
             }
         }
     }
+
+    pub fn enums(&self, path: &ItemPath) -> Vec<Enum> {
+        match self {
+            ModuleOrFile::InnerModule(module) => get_module_enums(module, path),
+            ModuleOrFile::SynFile(module, file) => {
+                let mut structs = get_file_enums(file, path);
+
+                match module {
+                    ModuleOrCrateRoot::CrateRoot => {}
+                    ModuleOrCrateRoot::Module(module) => {
+                        structs.extend(get_module_enums(module, path))
+                    }
+                };
+
+                structs
+            }
+        }
+    }
 }
 
 impl ModuleOrCrateRoot<'_> {
@@ -196,6 +215,20 @@ fn get_module_structs(module: &ItemMod, path: &ItemPath) -> Vec<Struct> {
     }
 }
 
+fn get_module_enums(module: &ItemMod, path: &ItemPath) -> Vec<Enum> {
+    if let Some((_, items)) = &module.content {
+        items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Enum(enum_) => Some(Enum::from((enum_, path))),
+                _ => None,
+            })
+            .collect()
+    } else {
+        vec![]
+    }
+}
+
 fn get_files_impls(file: &File, path: &ItemPath) -> Vec<Impl> {
     file.items
         .iter()
@@ -211,6 +244,16 @@ fn get_file_structs(file: &File, path: &ItemPath) -> Vec<Struct> {
         .iter()
         .filter_map(|item| match item {
             Item::Struct(struct_) => Some(Struct::from((struct_, path))),
+            _ => None,
+        })
+        .collect()
+}
+
+fn get_file_enums(file: &File, path: &ItemPath) -> Vec<Enum> {
+    file.items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Enum(enum_) => Some(Enum::from((enum_, path))),
             _ => None,
         })
         .collect()

@@ -1,32 +1,32 @@
-use crate::ast::structs::Struct;
+use crate::ast::enums::Enum;
 use crate::rule::assertable::Assertable;
-use crate::rule::impl_block::impl_matches;
-use crate::rule::structs::condition::struct_matches;
-use crate::rule::structs::{
-    AssertionConjunction, AssertionToken, ConditionToken, SimpleAssertions, StructMatches,
-    StructPredicateConjunctionBuilder,
+use crate::rule::enums::{
+    AssertionConjunction, AssertionToken, ConditionToken, EnumMatches,
+    EnumPredicateConjunctionBuilder, SimpleAssertions,
 };
+use crate::rule::impl_block::impl_matches;
+use crate::rule::structs::condition::enum_matches;
 use crate::rule::{ArchRule, CheckRule};
 
 impl
     CheckRule<
         ConditionToken,
         AssertionToken,
-        StructMatches,
-        ArchRule<ConditionToken, AssertionToken, StructMatches>,
-    > for StructPredicateConjunctionBuilder
+        EnumMatches,
+        ArchRule<ConditionToken, AssertionToken, EnumMatches>,
+    > for EnumPredicateConjunctionBuilder
 {
-    fn get_rule(self) -> ArchRule<ConditionToken, AssertionToken, StructMatches> {
+    fn get_rule(self) -> ArchRule<ConditionToken, AssertionToken, EnumMatches> {
         self.0
     }
 }
 
-impl Assertable<ConditionToken, AssertionToken, StructMatches>
-    for ArchRule<ConditionToken, AssertionToken, StructMatches>
+impl Assertable<ConditionToken, AssertionToken, EnumMatches>
+    for ArchRule<ConditionToken, AssertionToken, EnumMatches>
 {
     fn apply_conditions(&mut self) {
-        let mut matches = StructMatches::default();
-        let structs = struct_matches();
+        let mut matches = EnumMatches::default();
+        let enums = enum_matches();
 
         enum Conjunction {
             Or,
@@ -38,28 +38,28 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
 
         while let Some(condition) = self.conditions.pop_back() {
             let match_against = match conjunction {
-                Conjunction::Or => structs,
+                Conjunction::Or => enums,
                 Conjunction::And => &matches,
             };
 
             let matches_for_condition = match condition {
                 ConditionToken::AreDeclaredPublic => {
                     self.assertion_result.push_expected("are declared public");
-                    match_against.structs_that(Struct::is_public)
+                    match_against.enums_that(Enum::is_public)
                 }
                 ConditionToken::AreDeclaredPrivate => {
                     self.assertion_result.push_expected("are declared private");
-                    match_against.structs_that(|struct_| !struct_.is_public())
+                    match_against.enums_that(|enum_| !enum_.is_public())
                 }
                 ConditionToken::HaveSimpleName(name) => {
                     self.assertion_result
                         .push_expected(format!("have simple name '{}'", name));
-                    match_against.structs_that(|struct_| struct_.ident == name)
+                    match_against.enums_that(|enum_| enum_.ident == name)
                 }
                 ConditionToken::ResidesInAModule(name) => {
                     self.assertion_result
                         .push_expected(format!("resides in a modules named '{}'", name));
-                    match_against.structs_that(|struct_| struct_.has_parent(&name))
+                    match_against.enums_that(|enum_| enum_.has_parent(&name))
                 }
                 ConditionToken::And => {
                     self.assertion_result.push_expected(" and ");
@@ -78,14 +78,14 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                 ConditionToken::Derives(trait_) => {
                     let expected = format!("derive {trait_}");
                     self.assertion_result.push_expected(&expected);
-                    match_against.structs_that(|struct_| struct_.derives(&trait_))
+                    match_against.enums_that(|enum_| enum_.derives(&trait_))
                 }
                 ConditionToken::Implement(trait_) => {
                     let expected = format!("implement {trait_}");
                     self.assertion_result.push_expected(&expected);
                     let imps = impl_matches().impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(&trait_)));
                     let types = imps.types();
-                    match_against.structs_that(|struct_| types.contains(&struct_.ident.as_str()))
+                    match_against.enums_that(|enum_| types.contains(&enum_.ident.as_str()))
                 }
             };
 
@@ -115,8 +115,6 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                     SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
                     SimpleAssertions::Implement(trait_) => self.assert_implement(&trait_),
                     SimpleAssertions::Derive(trait_) => self.assert_derives(&trait_),
-                    SimpleAssertions::OnlyHavePrivateFields => self.assert_private_fields(),
-                    SimpleAssertions::OnlyHavePublicFields => self.assert_public_fields(),
                 },
                 AssertionToken::Conjunction(a) => match a {
                     AssertionConjunction::AndShould => {
@@ -142,23 +140,23 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
     }
 }
 
-impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
+impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
     fn assert_public(&mut self) -> bool {
         self.assertion_result.push_expected("be public");
         let non_public_struct = self
             .subject
             .0
             .iter()
-            .filter(|struct_| !struct_.is_public())
+            .filter(|enum_| !enum_.is_public())
             .collect::<Vec<_>>();
 
         if !non_public_struct.is_empty() {
             self.assertion_result
-                .push_actual("the following structs are not public:\n");
-            non_public_struct.iter().for_each(|struct_| {
+                .push_actual("the following enums are not public:\n");
+            non_public_struct.iter().for_each(|enum_| {
                 self.assertion_result.push_actual(format!(
                     "\t{} - visibility : {:?}\n",
-                    struct_.path, struct_.visibility
+                    enum_.path, enum_.visibility
                 ))
             });
             false
@@ -173,16 +171,16 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
             .subject
             .0
             .iter()
-            .filter(|struct_| struct_.is_public())
+            .filter(|enum_| enum_.is_public())
             .collect::<Vec<_>>();
 
         if !public_structs.is_empty() {
             self.assertion_result
-                .push_actual("the following structs are public:\n");
-            public_structs.iter().for_each(|struct_| {
+                .push_actual("the following enums are public:\n");
+            public_structs.iter().for_each(|enum_| {
                 self.assertion_result.push_actual(format!(
                     "\t{} - visibility : {:?}\n",
-                    struct_.path, struct_.visibility
+                    enum_.path, enum_.visibility
                 ))
             });
 
@@ -195,19 +193,19 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
     fn assert_simple_name(&mut self, name: String) -> bool {
         self.assertion_result
             .push_expected(format!("have simple name '{}'", name));
-        let struct_with_non_matching_name = self
+        let enum_with_non_matching_name = self
             .subject
             .0
             .iter()
-            .filter(|struct_| struct_.ident != name)
+            .filter(|enum_| enum_.ident != name)
             .collect::<Vec<_>>();
 
-        if !struct_with_non_matching_name.is_empty() {
+        if !enum_with_non_matching_name.is_empty() {
             self.assertion_result
-                .push_actual("the following structs have a different name:\n");
-            struct_with_non_matching_name.iter().for_each(|struct_| {
+                .push_actual("the following enums have a different name:\n");
+            enum_with_non_matching_name.iter().for_each(|enum_| {
                 self.assertion_result
-                    .push_actual(format!("{}\n", struct_.path))
+                    .push_actual(format!("{}\n", enum_.path))
             });
 
             false
@@ -220,20 +218,20 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
         self.assertion_result
             .push_expected(format!("derive '{trait_}'"));
 
-        let struct_without_expected_derive = self
+        let enum_without_expected_derive = self
             .subject
             .0
             .iter()
-            .filter(|struct_| !struct_.derives.contains(trait_))
+            .filter(|enum_| !enum_.derives.contains(trait_))
             .collect::<Vec<_>>();
 
-        if !struct_without_expected_derive.is_empty() {
+        if !enum_without_expected_derive.is_empty() {
             self.assertion_result.push_actual(&format!(
-                "the following structs does not derive '{trait_}':\n"
+                "the following enums does not derive '{trait_}':\n"
             ));
-            struct_without_expected_derive.iter().for_each(|struct_| {
+            enum_without_expected_derive.iter().for_each(|enum_| {
                 self.assertion_result
-                    .push_actual(format!("\t- {}\n", struct_.path))
+                    .push_actual(format!("\t- {}\n", enum_.path))
             });
 
             false
@@ -246,77 +244,25 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
         self.assertion_result
             .push_expected(format!("implement '{trait_}'"));
 
-        let struct_without_expected_impl = self
+        let enum_without_expected_impl = self
             .subject
             .0
             .iter()
-            .filter(|struct_| {
+            .filter(|enum_| {
                 let imp_for_type =
-                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+                    impl_matches().impl_that(|imp| imp.self_ty.name() == enum_.ident.as_str());
                 let imp_for_type = imp_for_type.impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
                 imp_for_type.is_empty()
             })
             .collect::<Vec<_>>();
 
-        if !struct_without_expected_impl.is_empty() {
+        if !enum_without_expected_impl.is_empty() {
             self.assertion_result.push_actual(&format!(
-                "the following structs does not implement '{trait_}':\n"
+                "the following enums does not implement '{trait_}':\n"
             ));
-            struct_without_expected_impl.iter().for_each(|struct_| {
+            enum_without_expected_impl.iter().for_each(|enum_| {
                 self.assertion_result
-                    .push_actual(format!("\t- {}\n", struct_.path))
-            });
-
-            false
-        } else {
-            true
-        }
-    }
-
-    fn assert_private_fields(&mut self) -> bool {
-        self.assertion_result
-            .push_expected("only have private fields");
-        let struct_with_only_public_fields = self
-            .subject
-            .0
-            .iter()
-            .filter(|struct_| !struct_.fields.is_empty())
-            .filter(|struct_| !struct_.has_non_public_field())
-            .collect::<Vec<_>>();
-
-        if !struct_with_only_public_fields.is_empty() {
-            self.assertion_result
-                .push_actual("the following structs have only public fields:\n");
-
-            struct_with_only_public_fields.iter().for_each(|struct_| {
-                self.assertion_result
-                    .push_actual(format!("\t- {}\n", struct_.path))
-            });
-
-            false
-        } else {
-            true
-        }
-    }
-
-    fn assert_public_fields(&mut self) -> bool {
-        self.assertion_result
-            .push_expected("only have public fields");
-        let struct_with_non_public_fields = self
-            .subject
-            .0
-            .iter()
-            .filter(|struct_| !struct_.fields.is_empty())
-            .filter(|struct_| struct_.has_non_public_field())
-            .collect::<Vec<_>>();
-
-        if !struct_with_non_public_fields.is_empty() {
-            self.assertion_result
-                .push_actual("the following structs have non public fields':\n");
-
-            struct_with_non_public_fields.iter().for_each(|struct_| {
-                self.assertion_result
-                    .push_actual(format!("\t- {}\n", struct_.path))
+                    .push_actual(format!("\t- {}\n", enum_.path))
             });
 
             false
@@ -328,13 +274,13 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
 
 #[cfg(test)]
 mod condition_test {
-    use crate::rule::structs::Structs;
+    use crate::rule::enums::Enums;
     use crate::rule::{ArchRuleBuilder, CheckRule};
 
     #[test]
     #[should_panic]
     fn should_check_derives_panic() {
-        Structs::that()
+        Enums::that()
             .reside_in_a_module("modules")
             .should()
             .derive("Eq")
@@ -343,47 +289,27 @@ mod condition_test {
 
     #[test]
     fn should_check_derives_ok() {
-        Structs::that()
-            .reside_in_a_module("assertion_result")
+        Enums::that()
+            .have_simple_name("Visibility")
             .should()
             .derive("Debug")
             .check();
     }
 
     #[test]
-    #[should_panic]
-    fn should_check_private_fields() {
-        Structs::that()
-            .are_declared_public()
-            .should()
-            .only_have_private_fields()
-            .check();
-    }
-
-    #[test]
-    fn should_check_public_fields_ok() {
-        Structs::that()
-            .reside_in_a_module("assertion_result")
-            .should()
-            .only_have_public_fields()
-            .check();
-    }
-
-    #[test]
-    #[should_panic]
     fn should_filter_implementors() {
-        Structs::that()
-            .implement("Display")
+        Enums::that()
+            .implement("Condition")
             .should()
-            .be_private()
+            .have_simple_name("ConditionToken")
             .check();
     }
 
     #[test]
     #[should_panic]
     fn should_check_implementation() {
-        Structs::that()
-            .have_simple_name("AssertionResult")
+        Enums::that()
+            .have_simple_name("AssertionToken")
             .should()
             .implement("Debug")
             .check();

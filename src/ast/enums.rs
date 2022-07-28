@@ -1,21 +1,20 @@
 use crate::ast::{ItemPath, Visibility};
-use syn::{ItemStruct, Meta, NestedMeta};
+use syn::{ItemEnum, Meta, NestedMeta};
 
 #[derive(Debug, PartialEq, Hash)]
-pub struct Struct {
+pub struct Enum {
     // parse me with quote to handle generics
     pub ident: String,
     pub derives: Vec<String>,
     pub visibility: Visibility,
-    pub fields: Vec<Field>,
     pub path: ItemPath,
 }
 
-impl From<(&ItemStruct, &ItemPath)> for Struct {
-    fn from((struct_, path): (&ItemStruct, &ItemPath)) -> Self {
-        let ident = struct_.ident.to_string();
+impl From<(&ItemEnum, &ItemPath)> for Enum {
+    fn from((enum_, path): (&ItemEnum, &ItemPath)) -> Self {
+        let ident = enum_.ident.to_string();
         let path = path.join(&ident);
-        let derives = struct_
+        let derives = enum_
             .attrs
             .iter()
             .filter(|attr| {
@@ -54,43 +53,18 @@ impl From<(&ItemStruct, &ItemPath)> for Struct {
             .flatten()
             .collect();
 
-        let fields = struct_.fields.iter().enumerate().map(Field::from).collect();
-
         Self {
             ident,
             derives,
-            visibility: Visibility::from_syn(&struct_.vis),
-            fields,
+            visibility: Visibility::from_syn(&enum_.vis),
             path,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Hash)]
-pub struct Field {
-    pub visibility: Visibility,
-    pub name: String,
-    pub type_: String,
-}
+impl Eq for Enum {}
 
-impl From<(usize, &syn::Field)> for Field {
-    fn from((idx, field): (usize, &syn::Field)) -> Self {
-        Self {
-            visibility: Visibility::from_syn(&field.vis),
-            name: field
-                .ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| idx.to_string()),
-            // todo: format this correctly
-            type_: format!("{:?}", field.ty),
-        }
-    }
-}
-
-impl Eq for Struct {}
-
-impl Struct {
+impl Enum {
     pub fn is_public(&self) -> bool {
         self.visibility == Visibility::Public
     }
@@ -101,14 +75,5 @@ impl Struct {
 
     pub fn derives(&self, trait_: &str) -> bool {
         self.derives.contains(&trait_.to_string())
-    }
-
-    pub fn has_non_public_field(&self) -> bool {
-        let has_non_public_field = self
-            .fields
-            .iter()
-            .any(|field| !matches!(field.visibility, Visibility::Public));
-
-        has_non_public_field
     }
 }
