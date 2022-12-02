@@ -146,6 +146,7 @@ impl ModuleOrFile<'_> {
 impl ModuleOrCrateRoot<'_> {
     fn ident(&self) -> Ident {
         let name = env::var("CARGO_PKG_NAME").unwrap();
+        let name = name.replace('-', "_");
         match self {
             ModuleOrCrateRoot::CrateRoot => Ident::new(name.as_str(), Span::mixed_site()),
             ModuleOrCrateRoot::Module(module) => module.ident.clone(),

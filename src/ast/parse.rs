@@ -59,6 +59,7 @@ impl ModuleAst {
         let location = ModuleFilePath::crate_root();
         let ast = location.get_ast();
         let name = env!("CARGO_CRATE_NAME", "'CARGO_CRATE_NAME' should be set").to_string();
+        let name = name.replace('-', "_");
         let mut crate_root = ModuleAst {
             name,
             location,

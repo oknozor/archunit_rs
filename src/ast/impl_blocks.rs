@@ -28,8 +28,7 @@ impl From<(&ItemImpl, &ItemPath)> for Impl {
 
                 ItemPath::new(path)
             }
-
-            _ => unreachable!("impl type should be Type::Path"),
+            _ => ItemPath::empty(),
         };
 
         let trait_impl = imp.trait_.as_ref().map(|(_, p, _)| {
