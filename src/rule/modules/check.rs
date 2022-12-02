@@ -345,6 +345,7 @@ mod condition_test {
     }
 
     #[test]
+    #[should_panic]
     fn should_check_dependency_assertions() {
         Modules::that()
             .have_simple_name("pattern")

@@ -285,7 +285,7 @@ mod condition_test {
         Enums::that()
             .reside_in_a_module("*::modules")
             .should()
-            .derive("Eq")
+            .derive("Deserialize")
             .check();
     }
 

@@ -39,7 +39,6 @@ impl PathPattern<'_> {
 mod test {
     use crate::rule::pattern::PathPattern;
     use speculoos::prelude::*;
-    use std::fmt;
 
     #[test]
     fn wildcard_only_should_match() {
