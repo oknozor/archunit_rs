@@ -95,6 +95,7 @@ pub enum SimpleAssertions {
     BePrivate,
     HaveSimpleName(String),
     Implement(String),
+    ImplementOrDerive(String),
     Derive(String),
 }
 
@@ -219,6 +220,17 @@ impl EnumPredicateBuilder {
             .push_front(AssertionToken::SimpleAssertion(SimpleAssertions::Derive(
                 trait_name.to_string(),
             )));
+
+        PredicateConjunctionBuilder(self.0)
+    }
+
+    /// Predicate matching enum that implement or derive the given trait.
+    pub fn implement_or_derive(mut self, trait_name: &str) -> EnumPredicateConjunctionBuilder {
+        self.0
+            .assertions
+            .push_front(AssertionToken::SimpleAssertion(
+                SimpleAssertions::ImplementOrDerive(trait_name.to_string()),
+            ));
 
         PredicateConjunctionBuilder(self.0)
     }

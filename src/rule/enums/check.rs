@@ -7,6 +7,7 @@ use crate::rule::enums::{
 use crate::rule::impl_block::impl_matches;
 use crate::rule::structs::condition::enum_matches;
 use crate::rule::{ArchRule, CheckRule};
+use std::collections::HashSet;
 
 impl
     CheckRule<
@@ -115,6 +116,9 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
                     SimpleAssertions::BePrivate => self.assert_private(),
                     SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
                     SimpleAssertions::Implement(trait_) => self.assert_implement(&trait_),
+                    SimpleAssertions::ImplementOrDerive(trait_) => {
+                        self.assert_implement_or_derive(&trait_)
+                    }
                     SimpleAssertions::Derive(trait_) => self.assert_derives(&trait_),
                 },
                 AssertionToken::Conjunction(a) => match a {
@@ -272,6 +276,49 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             true
         }
     }
+
+    fn assert_implement_or_derive(&mut self, trait_: &String) -> bool {
+        self.assertion_result
+            .push_expected(format!("derive '{trait_}'"));
+
+        let derive_set = self
+            .subject
+            .0
+            .iter()
+            .filter(|struct_| !struct_.derives.contains(trait_))
+            .collect::<HashSet<_>>();
+
+        let impl_set = self
+            .subject
+            .0
+            .iter()
+            .filter(|struct_| {
+                let imp_for_type =
+                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+
+                let imp_for_type = imp_for_type
+                    .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
+
+                imp_for_type.is_empty()
+            })
+            .collect::<HashSet<_>>();
+
+        let intersection: Vec<&&&Enum> = impl_set.intersection(&derive_set).collect();
+        if !intersection.is_empty() {
+            self.assertion_result.push_actual(&format!(
+                "the following structs does not derive or implement '{trait_}':\n"
+            ));
+
+            intersection.iter().for_each(|struct_| {
+                self.assertion_result
+                    .push_actual(format!("\t- {}\n", struct_.path))
+            });
+
+            false
+        } else {
+            true
+        }
+    }
 }
 
 #[cfg(test)]
@@ -315,5 +362,12 @@ mod condition_test {
             .should()
             .implement("Debug")
             .check();
+    }
+
+    #[test]
+    fn should_derive_or_implement_debug() {
+        // Note: we are currently limited to struct and enum living in modules
+        // anything living inside a function is ignored
+        Enums::all_should().implement_or_derive("Debug").check();
     }
 }
