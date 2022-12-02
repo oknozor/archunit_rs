@@ -1,7 +1,7 @@
 use crate::ast::{ItemPath, Visibility};
 use syn::{ItemStruct, Meta, NestedMeta};
 
-#[derive(Debug, PartialEq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Struct {
     // parse me with quote to handle generics
     pub ident: String,
@@ -66,7 +66,7 @@ impl From<(&ItemStruct, &ItemPath)> for Struct {
     }
 }
 
-#[derive(Debug, PartialEq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Field {
     pub visibility: Visibility,
     pub name: String,
@@ -87,8 +87,6 @@ impl From<(usize, &syn::Field)> for Field {
         }
     }
 }
-
-impl Eq for Struct {}
 
 impl Struct {
     pub fn is_public(&self) -> bool {

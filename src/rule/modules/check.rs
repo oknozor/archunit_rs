@@ -1,9 +1,10 @@
-use crate::ast::{module_tree, ItemPath};
+use crate::ast::{module_tree, ItemPath, ModuleUse};
 use crate::rule::modules::ModuleMatches;
 use crate::rule::modules::{
     AssertionConjunction, AssertionToken, ConditionToken, DependencyAssertion,
     DependencyAssertionConjunction, ModulePredicateConjunctionBuilder, SimpleAssertions,
 };
+use crate::rule::pattern::PathPattern;
 use crate::rule::{assertable::Assertable, ArchRule, CheckRule};
 use crate::ModuleTree;
 use std::collections::HashMap;
@@ -62,6 +63,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                 ConditionToken::HaveSimpleName(name) => {
                     self.assertion_result
                         .push_expected(format!("have simple name '{}'", name));
+
                     match_against
                         .0
                         .values()
@@ -160,7 +162,32 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                     dependency_assertion_conjunction,
                 ) => match dependency_assertion_conjunction {
                     DependencyAssertionConjunction::OnlyHaveDependencyModule => {
-                        todo!()
+                        // Skip mandatory `that` token
+                        let _that = self.assertions.pop_back();
+                        // While we don't have a conjunction we are in the dependency assertion
+                        let mut assertion_result = true;
+                        while let Some(token) = self.assertions.pop_back() {
+                            match token {
+                                AssertionToken::SimpleAssertion(
+                                    SimpleAssertions::HaveSimpleName(name),
+                                ) => {
+                                    assertion_result = self.assert_dependencies_name_match(&name);
+                                }
+                                AssertionToken::Conjunction(AssertionConjunction::AndShould) => {
+                                    self.assertion_result.push_expected(" and ");
+                                    conjunction = Conjunction::And;
+                                    break;
+                                }
+                                AssertionToken::Conjunction(AssertionConjunction::OrShould) => {
+                                    self.assertion_result.push_expected(" or ");
+                                    conjunction = Conjunction::Or;
+                                    break;
+                                }
+                                other => unimplemented!("Unexpected assertion token {other:?}"),
+                            }
+                        }
+
+                        assertion_result
                     }
                 },
             };
@@ -213,8 +240,7 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             .collect::<Vec<_>>();
 
         if !public_modules.is_empty() {
-            self.assertion_result
-                .push_actual("the following modules are public:\n");
+            self.assertion_result.push_actual("Found public module:\n");
             public_modules.iter().for_each(|module| {
                 self.assertion_result.push_actual(format!(
                     "\t{} - visibility : {:?}\n",
@@ -251,6 +277,54 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             true
         }
     }
+
+    fn assert_dependencies_name_match(&mut self, pattern: &str) -> bool {
+        self.assertion_result.push_expected(format!(
+            "only have dependencies matching pattern '{pattern}'"
+        ));
+        let dependencies_matches = self
+            .subject
+            .0
+            .values()
+            .map(|module| module.flatten_deps())
+            .collect::<Vec<_>>();
+
+        let mut per_module_mismatch = vec![];
+        for dependency_match in dependencies_matches {
+            for (path, deps) in dependency_match.0 {
+                println!("{:?}", (path, deps));
+                let mismatch_deps: Vec<&ModuleUse> =
+                    deps.iter().filter(|dep| !dep.matching(pattern)).collect();
+
+                if !mismatch_deps.is_empty() {
+                    per_module_mismatch.push((path, mismatch_deps));
+                }
+            }
+        }
+
+        if per_module_mismatch.is_empty() {
+            true
+        } else {
+            for (path, usage) in per_module_mismatch {
+                self.assertion_result.push_actual(format!(
+                    "\n\nDependencies in '{path}' don't match '{pattern}':"
+                ));
+                for usage in usage {
+                    self.assertion_result
+                        .push_actual(format!("\n\t- 'use {}'", usage.parts))
+                }
+                self.assertion_result.push_actual("\n");
+            }
+            self.assertion_result.push_actual("\n");
+            false
+        }
+    }
+}
+
+impl ModuleUse {
+    pub fn matching(&self, pattern: &str) -> bool {
+        PathPattern::from(pattern).matches_module_path(&self.parts)
+    }
 }
 
 #[cfg(test)]
@@ -268,5 +342,18 @@ mod condition_test {
             .should()
             .be_public()
             .check();
+    }
+
+    #[test]
+    fn should_check_dependency_assertions() {
+        Modules::that()
+            .have_simple_name("pattern")
+            .should()
+            .only_have_dependency_module()
+            .that()
+            .have_simple_name("wildmatch")
+            .and_should()
+            .be_private()
+            .check()
     }
 }

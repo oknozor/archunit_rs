@@ -1,4 +1,4 @@
-use crate::ast::ItemPath;
+use crate::ast::{ItemPath, ModuleUse};
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     DependencyPredicateConjunctionBuilder, PredicateBuilder, PredicateConjunctionBuilder, Subject,
@@ -23,8 +23,11 @@ mod condition;
 #[derive(Debug)]
 pub struct Modules;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
+
+#[derive(Default, Debug)]
+pub struct DependenciesMatches(pub HashMap<&'static ItemPath, &'static Vec<ModuleUse>>);
 
 impl ModuleMatches {
     pub fn extend(&mut self, other: ModuleMatches) {
@@ -47,7 +50,7 @@ impl Assertion for AssertionToken {}
 
 impl Subject for ModuleMatches {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ConditionToken {
     AreDeclaredPublic,
     ResidesInAModule(String),
@@ -60,7 +63,7 @@ pub enum ConditionToken {
     Should,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AssertionToken {
     SimpleAssertion(SimpleAssertions),
     Conjunction(AssertionConjunction),
@@ -68,24 +71,24 @@ pub enum AssertionToken {
     DependencyAssertionConjunction(DependencyAssertionConjunction),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DependencyAssertionConjunction {
     OnlyHaveDependencyModule,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DependencyAssertion {
     That,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SimpleAssertions {
     BePublic,
     BePrivate,
     HaveSimpleName(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AssertionConjunction {
     AndShould,
     OrShould,
@@ -164,9 +167,7 @@ impl ModulePredicateBuilder {
         PredicateConjunctionBuilder(self.0)
     }
 
-    pub fn only_have_dependency_module_that(
-        mut self,
-    ) -> ModuleDependencyPredicateConjunctionBuilder {
+    pub fn only_have_dependency_module(mut self) -> ModuleDependencyPredicateConjunctionBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::DependencyAssertionConjunction(
@@ -222,7 +223,7 @@ mod module_test {
             .or()
             .are_declared_public()
             .should()
-            .only_have_dependency_module_that()
+            .only_have_dependency_module()
             .that()
             .have_simple_name("toto")
             .and_should()

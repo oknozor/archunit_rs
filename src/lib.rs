@@ -8,8 +8,6 @@
 //     - [x] enum
 //     - [x] modules
 
-extern crate core;
-
 pub mod assertion_result;
 pub mod ast;
 pub mod rule;

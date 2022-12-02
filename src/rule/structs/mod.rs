@@ -69,10 +69,12 @@ pub type StructPredicateConjunctionBuilder =
     PredicateConjunctionBuilder<ConditionToken, AssertionToken, StructMatches>;
 
 impl Condition for ConditionToken {}
+
 impl Assertion for AssertionToken {}
+
 impl Subject for StructMatches {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ConditionToken {
     AreDeclaredPublic,
     ResidesInAModule(String),
@@ -85,13 +87,13 @@ pub enum ConditionToken {
     Should,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssertionToken {
     SimpleAssertion(SimpleAssertions),
     Conjunction(AssertionConjunction),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SimpleAssertions {
     BePublic,
     BePrivate,
@@ -102,7 +104,7 @@ pub enum SimpleAssertions {
     OnlyHavePublicFields,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AssertionConjunction {
     AndShould,
     OrShould,

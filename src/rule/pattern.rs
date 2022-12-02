@@ -11,12 +11,12 @@ impl<'a> From<&'a str> for PathPattern<'a> {
     }
 }
 
-impl Into<WildMatch> for PathPattern<'_> {
-    fn into(self) -> WildMatch {
-        if let Some(pattern) = self.pattern.strip_suffix("::") {
+impl From<PathPattern<'_>> for WildMatch {
+    fn from(pattern: PathPattern) -> Self {
+        if let Some(pattern) = pattern.pattern.strip_suffix("::") {
             WildMatch::new(pattern)
         } else {
-            WildMatch::new(self.pattern)
+            WildMatch::new(pattern.pattern)
         }
     }
 }
@@ -37,9 +37,9 @@ impl PathPattern<'_> {
 
 #[cfg(test)]
 mod test {
-    use speculoos::prelude::*;
-
     use crate::rule::pattern::PathPattern;
+    use speculoos::prelude::*;
+    use std::fmt;
 
     #[test]
     fn wildcard_only_should_match() {

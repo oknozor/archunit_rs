@@ -9,7 +9,7 @@ pub mod pattern;
 pub mod structs;
 
 #[derive(Debug)]
-pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug, S: Subject> {
+pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug + Clone, S: Subject> {
     pub(crate) conditions: VecDeque<C>,
     pub(crate) assertions: VecDeque<A>,
     pub(crate) subject: S,
@@ -54,7 +54,7 @@ pub trait Subject: Default {}
 pub trait Condition: Debug + PartialEq {}
 
 /// [`Assertion`] are used to filter matching [`Subjects`]
-pub trait Assertion: Debug + PartialEq {}
+pub trait Assertion: Debug + PartialEq + Clone {}
 
 pub trait CheckRule<C: Condition, A: Assertion, S: Subject, T: assertable::Assertable<C, A, S>>:
     Sized

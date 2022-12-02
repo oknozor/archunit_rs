@@ -26,6 +26,6 @@ impl AssertionResult {
 
 impl fmt::Display for AssertionResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Expected {}, but {}", self.expected, self.actual)
+        writeln!(f, "Expected {}\nbut {}", self.expected, self.actual)
     }
 }

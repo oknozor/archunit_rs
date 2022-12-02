@@ -5,6 +5,7 @@ use crate::ast::enums::Enum;
 use impl_blocks::Impl;
 use once_cell::sync::OnceCell;
 use structs::Struct;
+use syn::{ItemUse, UseTree};
 
 use crate::ast::parse::ModuleAst;
 use crate::ast::visitor::{ModuleOrCrateRoot, SynModuleTree};
@@ -23,6 +24,7 @@ pub fn module_tree() -> &'static ModuleTree {
 
 #[derive(Debug)]
 pub struct ModuleTree {
+    pub dependencies: Vec<ModuleUse>,
     pub path: ItemPath,
     pub ident: String,
     pub visibility: Visibility,
@@ -88,6 +90,30 @@ impl fmt::Display for ItemPath {
     }
 }
 
+#[derive(Debug)]
+pub struct ModuleUse {
+    vis: Visibility,
+    pub parts: String,
+}
+
+impl From<&ItemUse> for ModuleUse {
+    fn from(item_use: &ItemUse) -> Self {
+        let vis = Visibility::from_syn(&item_use.vis);
+        let mut parts = String::new();
+        if let UseTree::Path(path) = &item_use.tree {
+            parts.push_str(&path.ident.to_string());
+            let mut tree = &*path.tree;
+            while let UseTree::Path(path) = tree {
+                parts.push_str("::");
+                parts.push_str(&path.ident.to_string());
+                tree = &*path.tree;
+            }
+        }
+
+        ModuleUse { vis, parts }
+    }
+}
+
 impl ModuleTree {
     pub fn load() -> Self {
         let mut ast = ModuleAst::load_crate_ast();
@@ -104,7 +130,7 @@ impl ModuleTree {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Visibility {
     Public,
     Crate,
@@ -129,6 +155,7 @@ impl SynModuleTree<'_> {
     pub(crate) fn to_tree(&self, path: &ItemPath) -> ModuleTree {
         let visibility = Visibility::from_syn(&self.module.vis());
 
+        let dependencies = self.module.deps();
         let ident = self.module.ident().to_string();
         let path = path.join(ident.as_str());
         let structs = self.module.structs(&path);
@@ -142,6 +169,7 @@ impl SynModuleTree<'_> {
             .collect();
 
         ModuleTree {
+            dependencies,
             path,
             ident,
             visibility,

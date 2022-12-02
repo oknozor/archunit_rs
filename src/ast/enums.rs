@@ -1,7 +1,7 @@
 use crate::ast::{ItemPath, Visibility};
 use syn::{ItemEnum, Meta, NestedMeta};
 
-#[derive(Debug, PartialEq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Enum {
     // parse me with quote to handle generics
     pub ident: String,
@@ -61,8 +61,6 @@ impl From<(&ItemEnum, &ItemPath)> for Enum {
         }
     }
 }
-
-impl Eq for Enum {}
 
 impl Enum {
     pub fn is_public(&self) -> bool {

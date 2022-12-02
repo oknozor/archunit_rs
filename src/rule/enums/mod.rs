@@ -72,7 +72,7 @@ impl Assertion for AssertionToken {}
 
 impl Subject for EnumMatches {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ConditionToken {
     AreDeclaredPublic,
     ResidesInAModule(String),
@@ -85,13 +85,13 @@ pub enum ConditionToken {
     Should,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AssertionToken {
     SimpleAssertion(SimpleAssertions),
     Conjunction(AssertionConjunction),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SimpleAssertions {
     BePublic,
     BePrivate,
@@ -100,7 +100,7 @@ pub enum SimpleAssertions {
     Derive(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AssertionConjunction {
     AndShould,
     OrShould,

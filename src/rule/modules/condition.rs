@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{ItemPath, ModuleTree};
-use crate::rule::modules::ModuleMatches;
+use crate::rule::modules::{DependenciesMatches, ModuleMatches};
 
 impl ModuleTree {
     pub(crate) fn module_that<P>(&'static self, mut predicate: P) -> ModuleMatches
@@ -30,6 +30,21 @@ impl ModuleTree {
             });
 
         ModuleMatches(modules)
+    }
+
+    pub(crate) fn flatten_deps(&'static self) -> DependenciesMatches {
+        let mut modules = HashMap::new();
+        modules.insert(&self.path, &self.dependencies);
+
+        self.submodules
+            .iter()
+            .flat_map(|sub| sub.flatten().0)
+            .map(|(p, m)| (p, &m.dependencies))
+            .for_each(|(path, deps)| {
+                modules.insert(path, deps);
+            });
+
+        DependenciesMatches(modules)
     }
 }
 

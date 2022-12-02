@@ -2,7 +2,7 @@ use crate::ast::enums::Enum;
 use crate::ast::impl_blocks::Impl;
 use crate::ast::parse::ModuleAst;
 use crate::ast::structs::Struct;
-use crate::ast::ItemPath;
+use crate::ast::{ItemPath, ModuleUse};
 use std::env;
 use syn::__private::Span;
 use syn::visit::Visit;
@@ -67,6 +67,13 @@ pub enum ModuleOrCrateRoot<'ast> {
 }
 
 impl ModuleOrFile<'_> {
+    pub fn deps(&self) -> Vec<ModuleUse> {
+        match self {
+            ModuleOrFile::InnerModule(module) => get_module_use_item(module),
+            ModuleOrFile::SynFile(_module, file) => get_files_use_item(file),
+        }
+    }
+
     pub fn ident(&self) -> Ident {
         match self {
             ModuleOrFile::InnerModule(module) => module.ident.clone(),
@@ -187,6 +194,22 @@ impl<'ast> Visit<'ast> for FileVisitor<'ast> {
     }
 }
 
+fn get_module_use_item(module: &ItemMod) -> Vec<ModuleUse> {
+    module
+        .content
+        .as_ref()
+        .map(|(_brace, content)| {
+            content
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Use(u) => Some(ModuleUse::from(u)),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn get_module_impls(module: &ItemMod, path: &ItemPath) -> Vec<Impl> {
     if let Some((_, items)) = &module.content {
         items
@@ -254,6 +277,16 @@ fn get_file_enums(file: &File, path: &ItemPath) -> Vec<Enum> {
         .iter()
         .filter_map(|item| match item {
             Item::Enum(enum_) => Some(Enum::from((enum_, path))),
+            _ => None,
+        })
+        .collect()
+}
+
+fn get_files_use_item(file: &File) -> Vec<ModuleUse> {
+    file.items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Use(use_) => Some(ModuleUse::from(use_)),
             _ => None,
         })
         .collect()
