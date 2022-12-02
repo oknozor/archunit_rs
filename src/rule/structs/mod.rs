@@ -1,7 +1,7 @@
 use crate::ast::structs::Struct;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
-    PredicateBuilder, PredicateConjunctionBuilder, Subject,
+    PredicateBuilder, PredicateConjunctionBuilder, StructOrEnum, Subject,
 };
 use std::collections::HashSet;
 
@@ -24,6 +24,8 @@ pub mod condition;
 /// ```
 #[derive(Debug)]
 pub struct Structs;
+
+impl StructOrEnum for Structs {}
 
 #[derive(Debug, Default)]
 pub struct StructMatches(pub(crate) HashSet<&'static Struct>);

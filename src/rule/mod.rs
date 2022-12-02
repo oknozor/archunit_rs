@@ -5,6 +5,7 @@ use std::fmt::Debug;
 pub mod enums;
 pub mod impl_block;
 pub mod modules;
+pub mod pattern;
 pub mod structs;
 
 #[derive(Debug)]
@@ -110,3 +111,5 @@ pub struct DependencyPredicateConjunctionBuilder<C: Condition, P: Assertion, S: 
 );
 
 pub struct PredicateConjunctionBuilder<C: Condition, P: Assertion, S: Subject>(ArchRule<C, P, S>);
+
+trait StructOrEnum {}

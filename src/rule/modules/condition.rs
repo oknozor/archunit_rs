@@ -44,7 +44,7 @@ mod condition_test {
     #[test]
     fn should_filter_modules_with_and_conjunctions() {
         let mut arch_rule = Modules::that()
-            .reside_in_a_module("modules")
+            .reside_in_a_module("*::modules")
             .and()
             .have_simple_name("condition");
 
@@ -59,7 +59,7 @@ mod condition_test {
             .collect::<Vec<&str>>();
 
         assert_that!(arch_rule.0.assertion_result.expected).is_equal_to(
-            &"Modules that resides in a modules named 'modules' and have simple name 'condition'"
+            &"Modules that resides in a modules that match '*::modules' and have simple name 'condition'"
                 .to_string(),
         );
 
@@ -69,7 +69,7 @@ mod condition_test {
     #[test]
     fn should_filter_modules_with_or_conjunctions() {
         let mut arch_rule = Modules::that()
-            .reside_in_a_module("modules")
+            .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")
             .0;
@@ -84,7 +84,7 @@ mod condition_test {
             .collect::<Vec<&str>>();
 
         assert_that!(arch_rule.assertion_result.expected).is_equal_to(
-            &"Modules that resides in a modules named 'modules' or have simple name 'ast'"
+            &"Modules that resides in a modules that match 'archunit_rs::rule::modules::*' or have simple name 'ast'"
                 .to_string(),
         );
 

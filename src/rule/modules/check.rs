@@ -93,11 +93,11 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                 }
                 ConditionToken::ResidesInAModule(name) => {
                     self.assertion_result
-                        .push_expected(format!("resides in a modules named '{}'", name));
+                        .push_expected(format!("resides in a modules that match '{}'", name));
                     match_against
                         .0
                         .values()
-                        .flat_map(|module| module.module_that(|sub| sub.has_parent(&name)).0)
+                        .flat_map(|module| module.module_that(|sub| sub.path_match(&name)).0)
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::And => {
@@ -262,7 +262,7 @@ mod condition_test {
     #[should_panic]
     fn should_check_assertion() {
         Modules::that()
-            .reside_in_a_module("modules")
+            .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")
             .should()

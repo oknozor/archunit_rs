@@ -69,8 +69,8 @@ impl Enum {
         self.visibility == Visibility::Public
     }
 
-    pub fn has_parent(&self, name: &str) -> bool {
-        self.path.has_parent(name)
+    pub fn path_match(&self, pattern: &str) -> bool {
+        self.path.match_struct_path(pattern)
     }
 
     pub fn derives(&self, trait_: &str) -> bool {

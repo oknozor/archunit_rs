@@ -8,6 +8,7 @@ use structs::Struct;
 
 use crate::ast::parse::ModuleAst;
 use crate::ast::visitor::{ModuleOrCrateRoot, SynModuleTree};
+use crate::rule::pattern::PathPattern;
 
 pub mod enums;
 pub mod impl_blocks;
@@ -60,12 +61,12 @@ impl ItemPath {
         item_path
     }
 
-    pub fn has_parent(&self, parent_name: &str) -> bool {
-        if let Some((path, _)) = self.inner.rsplit_once("::") {
-            path.contains(parent_name)
-        } else {
-            false
-        }
+    pub fn match_module_path(&self, pattern: &str) -> bool {
+        PathPattern::from(pattern).matches_module_path(&self.inner)
+    }
+
+    pub fn match_struct_path(&self, pattern: &str) -> bool {
+        PathPattern::from(pattern).matches_struct_path(&self.inner)
     }
 
     pub fn name(&self) -> &str {
@@ -98,8 +99,8 @@ impl ModuleTree {
         self.visibility == Visibility::Public
     }
 
-    pub(crate) fn has_parent(&self, parent_name: &str) -> bool {
-        self.path.has_parent(parent_name)
+    pub(crate) fn path_match(&self, pattern: &str) -> bool {
+        self.path.match_module_path(pattern)
     }
 }
 

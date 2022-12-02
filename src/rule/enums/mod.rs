@@ -4,7 +4,7 @@ mod condition;
 use crate::ast::enums::Enum;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
-    PredicateBuilder, PredicateConjunctionBuilder, Subject,
+    PredicateBuilder, PredicateConjunctionBuilder, StructOrEnum, Subject,
 };
 use std::collections::HashSet;
 
@@ -22,6 +22,8 @@ use std::collections::HashSet;
 /// ```
 #[derive(Debug)]
 pub struct Enums;
+
+impl StructOrEnum for Enums {}
 
 #[derive(Debug, Default)]
 pub struct EnumMatches(pub(crate) HashSet<&'static Enum>);

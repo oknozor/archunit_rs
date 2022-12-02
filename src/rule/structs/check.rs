@@ -58,8 +58,8 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                 }
                 ConditionToken::ResidesInAModule(name) => {
                     self.assertion_result
-                        .push_expected(format!("resides in a modules named '{}'", name));
-                    match_against.structs_that(|struct_| struct_.has_parent(&name))
+                        .push_expected(format!("resides in a modules that match '{}'", name));
+                    match_against.structs_that(|struct_| struct_.path_match(&name))
                 }
                 ConditionToken::And => {
                     self.assertion_result.push_expected(" and ");
@@ -83,7 +83,8 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                 ConditionToken::Implement(trait_) => {
                     let expected = format!("implement {trait_}");
                     self.assertion_result.push_expected(&expected);
-                    let imps = impl_matches().impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(&trait_)));
+                    let imps = impl_matches()
+                        .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(&trait_)));
                     let types = imps.types();
                     match_against.structs_that(|struct_| types.contains(&struct_.ident.as_str()))
                 }
@@ -253,7 +254,8 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
             .filter(|struct_| {
                 let imp_for_type =
                     impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
-                let imp_for_type = imp_for_type.impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
+                let imp_for_type = imp_for_type
+                    .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
                 imp_for_type.is_empty()
             })
             .collect::<Vec<_>>();
@@ -335,7 +337,7 @@ mod condition_test {
     #[should_panic]
     fn should_check_derives_panic() {
         Structs::that()
-            .reside_in_a_module("modules")
+            .reside_in_a_module("*::modules")
             .should()
             .derive("Eq")
             .check();
