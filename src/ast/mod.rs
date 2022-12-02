@@ -92,13 +92,11 @@ impl fmt::Display for ItemPath {
 
 #[derive(Debug)]
 pub struct ModuleUse {
-    vis: Visibility,
     pub parts: String,
 }
 
 impl From<&ItemUse> for ModuleUse {
     fn from(item_use: &ItemUse) -> Self {
-        let vis = Visibility::from_syn(&item_use.vis);
         let mut parts = String::new();
         if let UseTree::Path(path) = &item_use.tree {
             parts.push_str(&path.ident.to_string());
@@ -110,7 +108,7 @@ impl From<&ItemUse> for ModuleUse {
             }
         }
 
-        ModuleUse { vis, parts }
+        ModuleUse { parts }
     }
 }
 
