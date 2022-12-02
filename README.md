@@ -50,6 +50,10 @@ fn arch_rules() {
         .that()
         .have_simple_name("baz")
         .check()
+
+    Enums::all_should()
+        .implement_or_derive("Debug")
+        .check();
 }
 ```
 
