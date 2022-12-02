@@ -89,6 +89,10 @@ impl From<(usize, &syn::Field)> for Field {
 }
 
 impl Struct {
+    pub fn all(&self) -> bool {
+        true
+    }
+
     pub fn is_public(&self) -> bool {
         self.visibility == Visibility::Public
     }

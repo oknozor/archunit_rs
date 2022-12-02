@@ -4,13 +4,13 @@ use crate::ModuleTree;
 use once_cell::sync::OnceCell;
 use std::collections::HashSet;
 
-pub(crate) fn impl_matches() -> &'static ImplMatches {
-    static INSTANCE: OnceCell<ImplMatches> = OnceCell::new();
+pub(crate) fn impl_matches() -> &'static ImplMatchesTODO {
+    static INSTANCE: OnceCell<ImplMatchesTODO> = OnceCell::new();
     INSTANCE.get_or_init(|| module_tree().flatten_impls())
 }
 
 impl ModuleTree {
-    pub(crate) fn flatten_impls(&'static self) -> ImplMatches {
+    pub(crate) fn flatten_impls(&'static self) -> ImplMatchesTODO {
         let mut impls = HashSet::new();
 
         self.impl_blocks.iter().for_each(|impl_block| {
@@ -22,15 +22,15 @@ impl ModuleTree {
             .flat_map(|sub| sub.flatten().0)
             .for_each(|(_, module)| impls.extend(module.flatten_impls().0));
 
-        ImplMatches(impls)
+        ImplMatchesTODO(impls)
     }
 }
 
 #[derive(Debug, Default)]
-pub struct ImplMatches(pub(crate) HashSet<&'static Impl>);
+pub struct ImplMatchesTODO(pub(crate) HashSet<&'static Impl>);
 
-impl ImplMatches {
-    pub fn impl_that<P>(&self, mut predicate: P) -> ImplMatches
+impl ImplMatchesTODO {
+    pub fn impl_that<P>(&self, mut predicate: P) -> ImplMatchesTODO
     where
         P: FnMut(&Impl) -> bool,
     {
@@ -43,7 +43,7 @@ impl ImplMatches {
                 set.insert(imp);
             });
 
-        ImplMatches(set)
+        ImplMatchesTODO(set)
     }
 
     pub fn types(&self) -> Vec<&str> {

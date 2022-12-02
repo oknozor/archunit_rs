@@ -7,6 +7,8 @@ use crate::rule::structs::{
     StructPredicateConjunctionBuilder,
 };
 use crate::rule::{ArchRule, CheckRule};
+use std::collections::HashSet;
+use wildmatch::WildMatch;
 
 impl
     CheckRule<
@@ -25,8 +27,15 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
     for ArchRule<ConditionToken, AssertionToken, StructMatches>
 {
     fn apply_conditions(&mut self) {
-        let mut matches = StructMatches::default();
         let structs = struct_matches();
+
+        if self.conditions.is_empty() {
+            self.assertion_result.push_expected("All structs should ");
+            self.subject = structs.structs_that(Struct::all);
+            return;
+        };
+
+        let mut matches = StructMatches::default();
 
         enum Conjunction {
             Or,
@@ -55,6 +64,12 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                     self.assertion_result
                         .push_expected(format!("have simple name '{}'", name));
                     match_against.structs_that(|struct_| struct_.ident == name)
+                }
+                ConditionToken::HaveNameMatching(pattern) => {
+                    self.assertion_result
+                        .push_expected(format!("have name matching '{}'", pattern));
+                    match_against
+                        .structs_that(|struct_| WildMatch::new(&pattern).matches(&struct_.ident))
                 }
                 ConditionToken::ResidesInAModule(name) => {
                     self.assertion_result
@@ -116,15 +131,20 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                     SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
                     SimpleAssertions::Implement(trait_) => self.assert_implement(&trait_),
                     SimpleAssertions::Derive(trait_) => self.assert_derives(&trait_),
+                    SimpleAssertions::ImplementOrDerive(trait_) => {
+                        self.assert_implement_or_derive(&trait_)
+                    }
                     SimpleAssertions::OnlyHavePrivateFields => self.assert_private_fields(),
                     SimpleAssertions::OnlyHavePublicFields => self.assert_public_fields(),
                 },
                 AssertionToken::Conjunction(a) => match a {
                     AssertionConjunction::AndShould => {
+                        self.assertion_result.push_expected(" and ");
                         conjunction = Conjunction::And;
                         true
                     }
                     AssertionConjunction::OrShould => {
+                        self.assertion_result.push_expected(" or ");
                         conjunction = Conjunction::Or;
                         true
                     }
@@ -132,7 +152,11 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
             };
 
             match conjunction {
-                Conjunction::Or => success = success || assertion_outcome,
+                Conjunction::Or => {
+                    success = success || assertion_outcome;
+                    // Make sure we use logical && until the next conjunction
+                    conjunction = Conjunction::And;
+                }
                 Conjunction::And => success = success && assertion_outcome,
             };
         }
@@ -254,8 +278,10 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
             .filter(|struct_| {
                 let imp_for_type =
                     impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+
                 let imp_for_type = imp_for_type
                     .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
+
                 imp_for_type.is_empty()
             })
             .collect::<Vec<_>>();
@@ -265,6 +291,49 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
                 "the following structs does not implement '{trait_}':\n"
             ));
             struct_without_expected_impl.iter().for_each(|struct_| {
+                self.assertion_result
+                    .push_actual(format!("\t- {}\n", struct_.path))
+            });
+
+            false
+        } else {
+            true
+        }
+    }
+
+    fn assert_implement_or_derive(&mut self, trait_: &String) -> bool {
+        self.assertion_result
+            .push_expected(format!("derive '{trait_}'"));
+
+        let derive_set = self
+            .subject
+            .0
+            .iter()
+            .filter(|struct_| !struct_.derives.contains(trait_))
+            .collect::<HashSet<_>>();
+
+        let impl_set = self
+            .subject
+            .0
+            .iter()
+            .filter(|struct_| {
+                let imp_for_type =
+                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+
+                let imp_for_type = imp_for_type
+                    .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
+
+                imp_for_type.is_empty()
+            })
+            .collect::<HashSet<_>>();
+
+        let intersection: Vec<&&&Struct> = impl_set.intersection(&derive_set).collect();
+        if !intersection.is_empty() {
+            self.assertion_result.push_actual(&format!(
+                "the following structs does not derive or implement '{trait_}':\n"
+            ));
+
+            intersection.iter().for_each(|struct_| {
                 self.assertion_result
                     .push_actual(format!("\t- {}\n", struct_.path))
             });
@@ -388,6 +457,50 @@ mod condition_test {
             .have_simple_name("AssertionResult")
             .should()
             .implement("Debug")
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn struct_suffixed_with_matches_should_implement_subject_panic() {
+        Structs::that()
+            .have_simple_name("EnumMatches")
+            .or()
+            .have_simple_name("Modules")
+            .should()
+            .implement("Subject")
+            .check();
+    }
+
+    #[test]
+    fn all_structs_should_derive_debug() {
+        Structs::all_should().derive("Debug").check();
+    }
+
+    #[test]
+    fn all_structs_should_derive_or_implement_debug() {
+        Structs::all_should().implement_or_derive("Debug").check();
+    }
+
+    #[test]
+    fn structs_by_name_matching_should_implement_subject() {
+        Structs::that()
+            .have_name_matching("*Matches")
+            .should()
+            .implement("Subject")
+            .check();
+    }
+
+    #[test]
+    fn structs_by_simple_name_should_implement_subject() {
+        Structs::that()
+            .have_simple_name("EnumMatches")
+            .or()
+            .have_simple_name("ModuleMatches")
+            .or()
+            .have_simple_name("StructMatches")
+            .should()
+            .implement("Subject")
             .check();
     }
 }

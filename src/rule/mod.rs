@@ -98,18 +98,26 @@ pub trait ArchRuleBuilder<C: Condition, P: Assertion, S: Subject>: Sized {
     fn that() -> ConditionBuilder<C, P, S> {
         ConditionBuilder(ArchRule::<C, P, S>::new())
     }
+
+    /// Match all and returns a [`PredicateBuilder`].
+    fn all_should() -> PredicateBuilder<C, P, S> {
+        PredicateBuilder(ArchRule::<C, P, S>::new())
+    }
 }
 
+#[derive(Debug)]
 pub struct ConditionBuilder<C: Condition, P: Assertion, S: Subject>(ArchRule<C, P, S>);
 
+#[derive(Debug)]
 pub struct ConditionConjunctionBuilder<C: Condition, P: Assertion, S: Subject>(ArchRule<C, P, S>);
 
+#[derive(Debug)]
 pub struct PredicateBuilder<C: Condition, P: Assertion, S: Subject>(ArchRule<C, P, S>);
 
+#[derive(Debug)]
 pub struct DependencyPredicateConjunctionBuilder<C: Condition, P: Assertion, S: Subject>(
     ArchRule<C, P, S>,
 );
 
+#[derive(Debug)]
 pub struct PredicateConjunctionBuilder<C: Condition, P: Assertion, S: Subject>(ArchRule<C, P, S>);
-
-trait StructOrEnum {}

@@ -292,7 +292,6 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
         let mut per_module_mismatch = vec![];
         for dependency_match in dependencies_matches {
             for (path, deps) in dependency_match.0 {
-                println!("{:?}", (path, deps));
                 let mismatch_deps: Vec<&ModuleUse> =
                     deps.iter().filter(|dep| !dep.matching(pattern)).collect();
 

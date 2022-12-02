@@ -1,7 +1,7 @@
 use crate::ast::structs::Struct;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
-    PredicateBuilder, PredicateConjunctionBuilder, StructOrEnum, Subject,
+    PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
 use std::collections::HashSet;
 
@@ -24,8 +24,6 @@ pub mod condition;
 /// ```
 #[derive(Debug)]
 pub struct Structs;
-
-impl StructOrEnum for Structs {}
 
 #[derive(Debug, Default)]
 pub struct StructMatches(pub(crate) HashSet<&'static Struct>);
@@ -80,6 +78,7 @@ pub enum ConditionToken {
     ResidesInAModule(String),
     AreDeclaredPrivate,
     HaveSimpleName(String),
+    HaveNameMatching(String),
     Derives(String),
     Implement(String),
     And,
@@ -100,6 +99,7 @@ pub enum SimpleAssertions {
     HaveSimpleName(String),
     Implement(String),
     Derive(String),
+    ImplementOrDerive(String),
     OnlyHavePrivateFields,
     OnlyHavePublicFields,
 }
@@ -140,6 +140,14 @@ impl StructConditionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::HaveSimpleName(name.to_string()));
+        ConditionConjunctionBuilder(self.0)
+    }
+
+    /// filter struct with the given name
+    pub fn have_name_matching(mut self, pattern: &str) -> StructConditionConjunctionBuilder {
+        self.0
+            .conditions
+            .push_front(ConditionToken::HaveNameMatching(pattern.to_string()));
         ConditionConjunctionBuilder(self.0)
     }
 
@@ -225,6 +233,17 @@ impl StructPredicateBuilder {
             .push_front(AssertionToken::SimpleAssertion(SimpleAssertions::Derive(
                 trait_name.to_string(),
             )));
+
+        PredicateConjunctionBuilder(self.0)
+    }
+
+    /// Predicate matching struct which derives OR implement the given trait.
+    pub fn implement_or_derive(mut self, trait_name: &str) -> StructPredicateConjunctionBuilder {
+        self.0
+            .assertions
+            .push_front(AssertionToken::SimpleAssertion(
+                SimpleAssertions::ImplementOrDerive(trait_name.to_string()),
+            ));
 
         PredicateConjunctionBuilder(self.0)
     }

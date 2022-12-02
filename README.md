@@ -1,7 +1,30 @@
-# Archunit-rs
+<div align="center">
+    <h1># Archunit-rs</h1>
+<p>Archunit-rs is an architecture testing library inspired by <a href="https://www.archunit.org/">Archunit</a>.
+</p>
+  <a href="https://github.com/oknozor/archunit_rs/actions"
+    ><img
+      src="https://github.com/oknozor/archunit_rs/actions/workflows/CI.yaml/badge.svg"
+      alt="GitHub Actions workflow status"
+  /></a>
+    <a href="https://codecov.io/gh/oknozor/archunit_rs"
+    ><img
+    src="https://codecov.io/gh/oknozor/archunit_rs/branch/main/graph/badge.svg"
+    alt="Code coverage status"/>
+    </a>
+  <br />
+  <a href="https://conventionalcommits.org"
+    ><img
+      src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg"
+      alt="Conventional commits"
+  /></a>
+  <a href="https://github.com/cocogitto/cocogitto/blob/main/LICENSE"
+    ><img
+      src="https://img.shields.io/github/license/cocogitto/cocogitto"
+      alt="Repository license"
+  /></a>
+</div>
 
-Archunit-rs is an architecture testing library inspired by [ArchUnit](https://www.archunit.org/) for checking
-the architecture of your crates using unit tests.
 
 ---
 

@@ -27,7 +27,7 @@ pub struct Modules;
 pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
 
 #[derive(Default, Debug)]
-pub struct DependenciesMatches(pub HashMap<&'static ItemPath, &'static Vec<ModuleUse>>);
+pub struct ModuleDependencies(pub HashMap<&'static ItemPath, &'static Vec<ModuleUse>>);
 
 impl ModuleMatches {
     pub fn extend(&mut self, other: ModuleMatches) {
