@@ -1,4 +1,6 @@
+use crate::assertion_result::AssertionResult;
 use crate::ast::{module_tree, ItemPath, ModuleUse};
+use crate::rule::modules::report::ModuleRuleViolation;
 use crate::rule::modules::ModuleMatches;
 use crate::rule::modules::{
     AssertionConjunction, AssertionToken, ConditionToken, DependencyAssertion,
@@ -35,7 +37,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
         }
 
         let mut conjunction = Conjunction::Or;
-        self.assertion_result.push_expected("Modules that ");
+        self.assertion_results.push_expected("Modules that ");
 
         while let Some(condition) = self.conditions.pop_back() {
             let match_against = match conjunction {
@@ -45,7 +47,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
 
             let matches_for_condition = match condition {
                 ConditionToken::AreDeclaredPublic => {
-                    self.assertion_result.push_expected("are declared public");
+                    self.assertion_results.push_expected("are declared public");
                     match_against
                         .0
                         .values()
@@ -53,7 +55,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::AreDeclaredPrivate => {
-                    self.assertion_result.push_expected("are declared private");
+                    self.assertion_results.push_expected("are declared private");
                     match_against
                         .0
                         .values()
@@ -61,8 +63,8 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::HaveSimpleName(name) => {
-                    self.assertion_result
-                        .push_expected(format!("have simple name '{}'", name));
+                    self.assertion_results
+                        .push_expected(format!("have simple name '{name}'"));
 
                     match_against
                         .0
@@ -71,8 +73,8 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::HaveSimpleEndingWith(pattern) => {
-                    self.assertion_result
-                        .push_expected(format!("have simple name ending with '{}'", pattern));
+                    self.assertion_results
+                        .push_expected(format!("have simple name ending with '{pattern}'"));
                     match_against
                         .0
                         .values()
@@ -82,7 +84,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::HaveSimpleStartingWith(pattern) => {
-                    self.assertion_result
+                    self.assertion_results
                         .push_expected(format!("have simple name starting with '{}'", &pattern));
 
                     match_against
@@ -94,8 +96,8 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::ResidesInAModule(name) => {
-                    self.assertion_result
-                        .push_expected(format!("resides in a modules that match '{}'", name));
+                    self.assertion_results
+                        .push_expected(format!("resides in a modules that match '{name}'"));
                     match_against
                         .0
                         .values()
@@ -103,17 +105,17 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::And => {
-                    self.assertion_result.push_expected(" and ");
+                    self.assertion_results.push_expected(" and ");
                     conjunction = Conjunction::And;
                     continue;
                 }
                 ConditionToken::Or => {
-                    self.assertion_result.push_expected(" or ");
+                    self.assertion_results.push_expected(" or ");
                     conjunction = Conjunction::Or;
                     continue;
                 }
                 ConditionToken::Should => {
-                    self.assertion_result.push_expected(" to ");
+                    self.assertion_results.push_expected(" to ");
                     break;
                 }
             };
@@ -141,7 +143,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                 AssertionToken::SimpleAssertion(assertion) => match assertion {
                     SimpleAssertions::BePublic => self.assert_public(),
                     SimpleAssertions::BePrivate => self.assert_private(),
-                    SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
+                    SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(&name),
                 },
                 AssertionToken::Conjunction(a) => match a {
                     AssertionConjunction::AndShould => {
@@ -174,16 +176,18 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                                     assertion_result = self.assert_dependencies_name_match(&name);
                                 }
                                 AssertionToken::Conjunction(AssertionConjunction::AndShould) => {
-                                    self.assertion_result.push_expected(" and ");
+                                    self.assertion_results.push_expected(" and ");
                                     conjunction = Conjunction::And;
                                     break;
                                 }
                                 AssertionToken::Conjunction(AssertionConjunction::OrShould) => {
-                                    self.assertion_result.push_expected(" or ");
+                                    self.assertion_results.push_expected(" or ");
                                     conjunction = Conjunction::Or;
                                     break;
                                 }
-                                other => unimplemented!("Unexpected assertion token {other:?}"),
+                                other => panic!(
+                                    "Unsupported nested module dependency assertion {other:?}"
+                                ),
                             }
                         }
 
@@ -197,41 +201,38 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                 Conjunction::And => success = success && assertion_outcome,
             };
         }
+    }
 
-        if !success {
-            panic!("\n{}", self.assertion_result)
-        }
+    fn assertion_results(&self) -> &AssertionResult {
+        &self.assertion_results
     }
 }
 
 impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
     fn assert_public(&mut self) -> bool {
-        self.assertion_result.push_expected("be public");
+        self.assertion_results.push_expected("be public");
         let non_public_modules = self
             .subject
             .0
             .values()
             .filter(|module| !module.is_public())
             .collect::<Vec<_>>();
-
-        if !non_public_modules.is_empty() {
-            self.assertion_result
-                .push_actual("the following modules are not public:\n");
-            non_public_modules.iter().for_each(|module| {
-                self.assertion_result.push_actual(format!(
-                    "\t{} - visibility : {:?}\n",
-                    module.path, module.visibility
+        for module in &non_public_modules {
+            self.assertion_results
+                .push_actual(ModuleRuleViolation::be_public(
+                    module
+                        .span
+                        .expect("Should not try to get span for crate root"),
+                    &module.real_path,
+                    module.ident.clone(),
+                    module.visibility,
                 ))
-            });
-
-            false
-        } else {
-            true
         }
+        non_public_modules.is_empty()
     }
 
     fn assert_private(&mut self) -> bool {
-        self.assertion_result.push_expected("be private");
+        self.assertion_results.push_expected("be private");
         let public_modules = self
             .subject
             .0
@@ -239,24 +240,24 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             .filter(|module| module.is_public())
             .collect::<Vec<_>>();
 
-        if !public_modules.is_empty() {
-            self.assertion_result.push_actual("Found public module:\n");
-            public_modules.iter().for_each(|module| {
-                self.assertion_result.push_actual(format!(
-                    "\t{} - visibility : {:?}\n",
-                    module.path, module.visibility
+        for module in &public_modules {
+            self.assertion_results
+                .push_actual(ModuleRuleViolation::be_private(
+                    module
+                        .span
+                        .expect("Should not try to get span for crate root"),
+                    &module.real_path,
+                    module.ident.clone(),
+                    module.visibility,
                 ))
-            });
-
-            false
-        } else {
-            true
         }
+
+        public_modules.is_empty()
     }
 
-    fn assert_simple_name(&mut self, name: String) -> bool {
-        self.assertion_result
-            .push_expected(format!("have simple name '{}'", name));
+    fn assert_simple_name(&mut self, name: &str) -> bool {
+        self.assertion_results
+            .push_expected(format!("have simple name '{name}'"));
         let module_with_non_matching_name = self
             .subject
             .0
@@ -264,22 +265,23 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             .filter(|module| module.ident != name)
             .collect::<Vec<_>>();
 
-        if !module_with_non_matching_name.is_empty() {
-            self.assertion_result
-                .push_actual("the following modules have a different name:\n");
-            module_with_non_matching_name.iter().for_each(|module| {
-                self.assertion_result
-                    .push_actual(format!("{}\n", module.path))
-            });
-
-            false
-        } else {
-            true
+        for module in &module_with_non_matching_name {
+            self.assertion_results
+                .push_actual(ModuleRuleViolation::have_name_matching(
+                    module
+                        .span
+                        .expect("Should not try to get span for crate root"),
+                    name.to_owned(),
+                    &module.real_path,
+                    module.ident.clone(),
+                ))
         }
+
+        module_with_non_matching_name.is_empty()
     }
 
     fn assert_dependencies_name_match(&mut self, pattern: &str) -> bool {
-        self.assertion_result.push_expected(format!(
+        self.assertion_results.push_expected(format!(
             "only have dependencies matching pattern '{pattern}'"
         ));
         let dependencies_matches = self
@@ -291,12 +293,12 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
 
         let mut per_module_mismatch = vec![];
         for dependency_match in dependencies_matches {
-            for (path, deps) in dependency_match.0 {
+            for (path, (real_path, deps)) in dependency_match.0 {
                 let mismatch_deps: Vec<&ModuleUse> =
                     deps.iter().filter(|dep| !dep.matching(pattern)).collect();
 
                 if !mismatch_deps.is_empty() {
-                    per_module_mismatch.push((path, mismatch_deps));
+                    per_module_mismatch.push((path, real_path, mismatch_deps));
                 }
             }
         }
@@ -304,17 +306,19 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
         if per_module_mismatch.is_empty() {
             true
         } else {
-            for (path, usage) in per_module_mismatch {
-                self.assertion_result.push_actual(format!(
-                    "\n\nDependencies in '{path}' don't match '{pattern}':"
-                ));
-                for usage in usage {
-                    self.assertion_result
-                        .push_actual(format!("\n\t- 'use {}'", usage.parts))
-                }
-                self.assertion_result.push_actual("\n");
+            for (path, real_path, usage) in per_module_mismatch {
+                usage.into_iter().for_each(|usage| {
+                    self.assertion_results.push_actual(
+                        ModuleRuleViolation::only_have_dependencies_with_simple_name(
+                            usage.span,
+                            real_path,
+                            path.to_string(),
+                            pattern.to_owned(),
+                            usage.parts.to_owned(),
+                        ),
+                    )
+                });
             }
-            self.assertion_result.push_actual("\n");
             false
         }
     }
@@ -324,12 +328,52 @@ impl ModuleUse {
     pub fn matching(&self, pattern: &str) -> bool {
         PathPattern::from(pattern).matches_module_path(&self.parts)
     }
+
+    pub fn starts_with(&self, path: &str) -> bool {
+        if self.parts.starts_with("crate") {
+            let name = env!("CARGO_CRATE_NAME", "'CARGO_CRATE_NAME' should be set");
+            let relative_path = &self.parts[5..];
+            let parts_canonical = &format!("{name}{relative_path}");
+            let pattern = format!("{path}*");
+            PathPattern::from(pattern.as_str()).matches_module_path(parts_canonical)
+        } else {
+            let pattern1 = format!("{path}*");
+            PathPattern::from(pattern1.as_str()).matches_module_path(&self.parts)
+        }
+    }
 }
 
 #[cfg(test)]
 mod condition_test {
+    use crate::ast::{CodeSpan, ModuleUse};
     use crate::rule::modules::Modules;
     use crate::rule::{ArchRuleBuilder, CheckRule};
+    use crate::ModuleFilters;
+    use speculoos::prelude::*;
+
+    #[test]
+    fn should_match_module_use_start() {
+        let module_usage = ModuleUse {
+            parts: "archunit_rs::rule::enums::Enums".to_string(),
+            span: CodeSpan::default(),
+        };
+
+        assert_that!(module_usage.starts_with("archunit_rs::rule")).is_true();
+        assert_that!(module_usage.starts_with("archunit_rs::ast")).is_false();
+        assert_that!(module_usage.starts_with("ast")).is_false();
+    }
+
+    #[test]
+    fn should_match_module_use_start_start_when_usage_start_with_crate() {
+        let module_usage = ModuleUse {
+            parts: "crate::rule::enums::Enums".to_string(),
+            span: CodeSpan::default(),
+        };
+
+        assert_that!(module_usage.starts_with("archunit_rs::rule")).is_true();
+        assert_that!(module_usage.starts_with("archunit_rs::ast")).is_false();
+        assert_that!(module_usage.starts_with("ast")).is_false();
+    }
 
     #[test]
     #[should_panic]
@@ -344,6 +388,19 @@ mod condition_test {
     }
 
     #[test]
+    fn should_check_dependency_assertions_excluding_cfg_test() {
+        ModuleFilters::default().exclude_test();
+
+        Modules::that()
+            .have_simple_name("pattern")
+            .should()
+            .only_have_dependency_module()
+            .that()
+            .have_simple_name("wildmatch")
+            .check()
+    }
+
+    #[test]
     #[should_panic]
     fn should_check_dependency_assertions() {
         Modules::that()
@@ -352,8 +409,6 @@ mod condition_test {
             .only_have_dependency_module()
             .that()
             .have_simple_name("wildmatch")
-            .and_should()
-            .be_private()
             .check()
     }
 }

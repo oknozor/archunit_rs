@@ -7,6 +7,7 @@ use std::collections::HashSet;
 
 pub mod check;
 pub mod condition;
+pub mod reports;
 
 /// A unit struct giving access to struct assertions.
 ///
@@ -115,7 +116,7 @@ impl StructConditionBuilder {
     pub fn reside_in_a_module(mut self, module: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::ResidesInAModule(module.to_string()));
+            .push_front(ConditionToken::ResidesInAModule(module.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 
@@ -139,7 +140,7 @@ impl StructConditionBuilder {
     pub fn have_simple_name(mut self, name: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::HaveSimpleName(name.to_string()));
+            .push_front(ConditionToken::HaveSimpleName(name.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 
@@ -147,7 +148,7 @@ impl StructConditionBuilder {
     pub fn have_name_matching(mut self, pattern: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::HaveNameMatching(pattern.to_string()));
+            .push_front(ConditionToken::HaveNameMatching(pattern.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 
@@ -155,7 +156,7 @@ impl StructConditionBuilder {
     pub fn derives(mut self, trait_name: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::Derives(trait_name.to_string()));
+            .push_front(ConditionToken::Derives(trait_name.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 
@@ -163,7 +164,7 @@ impl StructConditionBuilder {
     pub fn implement(mut self, trait_name: &str) -> StructConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::Implement(trait_name.to_string()));
+            .push_front(ConditionToken::Implement(trait_name.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 }
@@ -194,7 +195,7 @@ impl StructPredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
-                SimpleAssertions::HaveSimpleName(name.to_string()),
+                SimpleAssertions::HaveSimpleName(name.to_owned()),
             ));
         PredicateConjunctionBuilder(self.0)
     }
@@ -220,7 +221,7 @@ impl StructPredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
-                SimpleAssertions::Implement(trait_name.to_string()),
+                SimpleAssertions::Implement(trait_name.to_owned()),
             ));
 
         PredicateConjunctionBuilder(self.0)
@@ -231,7 +232,7 @@ impl StructPredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(SimpleAssertions::Derive(
-                trait_name.to_string(),
+                trait_name.to_owned(),
             )));
 
         PredicateConjunctionBuilder(self.0)
@@ -242,7 +243,7 @@ impl StructPredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
-                SimpleAssertions::ImplementOrDerive(trait_name.to_string()),
+                SimpleAssertions::ImplementOrDerive(trait_name.to_owned()),
             ));
 
         PredicateConjunctionBuilder(self.0)
@@ -324,7 +325,7 @@ mod test {
         assert_that!(rule.0.conditions.iter()).equals_iterator(
             &[
                 ConditionToken::Should,
-                ConditionToken::HaveSimpleName("Name".to_string()),
+                ConditionToken::HaveSimpleName("Name".to_owned()),
                 ConditionToken::And,
                 ConditionToken::AreDeclaredPrivate,
                 ConditionToken::And,
@@ -346,12 +347,12 @@ mod test {
                 AssertionToken::SimpleAssertion(SimpleAssertions::BePrivate),
                 AssertionToken::Conjunction(AssertionConjunction::OrShould),
                 AssertionToken::SimpleAssertion(SimpleAssertions::HaveSimpleName(
-                    "Name".to_string(),
+                    "Name".to_owned(),
                 )),
                 AssertionToken::Conjunction(AssertionConjunction::AndShould),
                 AssertionToken::SimpleAssertion(SimpleAssertions::BePublic),
                 AssertionToken::Conjunction(AssertionConjunction::OrShould),
-                AssertionToken::SimpleAssertion(SimpleAssertions::Implement("Name".to_string())),
+                AssertionToken::SimpleAssertion(SimpleAssertions::Implement("Name".to_owned())),
             ]
             .iter(),
         )

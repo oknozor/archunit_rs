@@ -2,11 +2,23 @@ use crate::ast::enums::Enum;
 use crate::ast::impl_blocks::Impl;
 use crate::ast::parse::ModuleAst;
 use crate::ast::structs::Struct;
-use crate::ast::{ItemPath, ModuleUse};
+use crate::ast::{CodeSpan, ItemPath, ModuleUse};
+use once_cell::sync::Lazy;
+use std::collections::HashSet;
 use std::env;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use syn::__private::Span;
 use syn::visit::Visit;
-use syn::{visit, File, Ident, Item, ItemMod, VisPublic};
+use syn::{visit, File, Ident, Item, ItemMod, Meta, VisPublic};
+
+static CFG_FILTERS: Lazy<Arc<Mutex<HashSet<&'static str>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashSet::new())));
+
+pub(crate) fn push_cfg_filter(cfg: &'static str) {
+    let mut filters = CFG_FILTERS.lock().expect("lock free");
+    filters.insert(cfg);
+}
 
 impl ModuleAst {
     pub fn visit_modules<'ast>(
@@ -16,7 +28,11 @@ impl ModuleAst {
         let mut visitor = FileVisitor::default();
 
         let mut module = SynModuleTree {
-            module: ModuleOrFile::SynFile(module_ident, &self.ast.0),
+            module: ModuleOrFile::SynFile {
+                module: module_ident,
+                file: &self.ast.0,
+                real_path: &self.location.0,
+            },
             submodules: vec![],
         };
 
@@ -26,7 +42,10 @@ impl ModuleAst {
             .inner_modules
             .iter()
             .map(|module| SynModuleTree {
-                module: ModuleOrFile::InnerModule(module),
+                module: ModuleOrFile::InnerModule {
+                    module,
+                    real_path: &self.location.0,
+                },
                 submodules: vec![],
             })
             .collect();
@@ -39,8 +58,11 @@ impl ModuleAst {
             let mod_name = item_mod.ident.to_string();
             let subtree_ast = iter_mut
                 .find(|sub_module_ast| sub_module_ast.name == mod_name)
-                .unwrap();
-            let sub_tree = subtree_ast.visit_modules(ModuleOrCrateRoot::Module(item_mod));
+                .expect("submodule exist");
+            let sub_tree = subtree_ast.visit_modules(ModuleOrCrateRoot::Module {
+                module: item_mod,
+                real_path: subtree_ast.location.0.clone(),
+            });
             module.submodules.push(sub_tree);
         }
 
@@ -56,47 +78,71 @@ pub struct SynModuleTree<'ast> {
 
 #[derive(Debug)]
 pub enum ModuleOrFile<'ast> {
-    InnerModule(&'ast ItemMod),
-    SynFile(ModuleOrCrateRoot<'ast>, &'ast File),
+    InnerModule {
+        module: &'ast ItemMod,
+        real_path: &'ast PathBuf,
+    },
+    SynFile {
+        module: ModuleOrCrateRoot<'ast>,
+        file: &'ast File,
+        real_path: &'ast PathBuf,
+    },
 }
 
 #[derive(Debug)]
 pub enum ModuleOrCrateRoot<'ast> {
     CrateRoot,
-    Module(&'ast ItemMod),
+    Module {
+        module: &'ast ItemMod,
+        real_path: PathBuf,
+    },
 }
 
 impl ModuleOrFile<'_> {
+    pub fn real_path(&self) -> PathBuf {
+        match self {
+            ModuleOrFile::InnerModule { real_path, .. } => real_path.to_path_buf(),
+            ModuleOrFile::SynFile { real_path, .. } => real_path.to_path_buf(),
+        }
+    }
+
+    pub fn span(&self) -> Option<CodeSpan> {
+        match self {
+            ModuleOrFile::InnerModule { module, .. } => Some(module.ident.span().into()),
+            ModuleOrFile::SynFile { module, .. } => module.span(),
+        }
+    }
+
     pub fn deps(&self) -> Vec<ModuleUse> {
         match self {
-            ModuleOrFile::InnerModule(module) => get_module_use_item(module),
-            ModuleOrFile::SynFile(_module, file) => get_files_use_item(file),
+            ModuleOrFile::InnerModule { module, .. } => get_module_use_item(module),
+            ModuleOrFile::SynFile { file, .. } => get_files_use_item(file),
         }
     }
 
     pub fn ident(&self) -> Ident {
         match self {
-            ModuleOrFile::InnerModule(module) => module.ident.clone(),
-            ModuleOrFile::SynFile(module, _) => module.ident(),
+            ModuleOrFile::InnerModule { module, .. } => module.ident.clone(),
+            ModuleOrFile::SynFile { module, .. } => module.ident(),
         }
     }
 
     pub fn vis(&self) -> syn::Visibility {
         match self {
-            ModuleOrFile::InnerModule(module) => module.vis.clone(),
-            ModuleOrFile::SynFile(module, _) => module.vis(),
+            ModuleOrFile::InnerModule { module, .. } => module.vis.clone(),
+            ModuleOrFile::SynFile { module, .. } => module.vis(),
         }
     }
 
     pub fn impls(&self, path: &ItemPath) -> Vec<Impl> {
         match self {
-            ModuleOrFile::InnerModule(module) => get_module_impls(module, path),
-            ModuleOrFile::SynFile(module, file) => {
+            ModuleOrFile::InnerModule { module, .. } => get_module_impls(module, path),
+            ModuleOrFile::SynFile { module, file, .. } => {
                 let mut structs = get_files_impls(file, path);
 
                 match module {
                     ModuleOrCrateRoot::CrateRoot => {}
-                    ModuleOrCrateRoot::Module(module) => {
+                    ModuleOrCrateRoot::Module { module, .. } => {
                         structs.extend(get_module_impls(module, path))
                     }
                 };
@@ -108,14 +154,20 @@ impl ModuleOrFile<'_> {
 
     pub fn structs(&self, path: &ItemPath) -> Vec<Struct> {
         match self {
-            ModuleOrFile::InnerModule(module) => get_module_structs(module, path),
-            ModuleOrFile::SynFile(module, file) => {
-                let mut structs = get_file_structs(file, path);
+            ModuleOrFile::InnerModule { module, real_path } => {
+                get_module_structs(module, path, real_path)
+            }
+            ModuleOrFile::SynFile {
+                module,
+                file,
+                real_path,
+            } => {
+                let mut structs = get_file_structs(file, path, real_path);
 
                 match module {
                     ModuleOrCrateRoot::CrateRoot => {}
-                    ModuleOrCrateRoot::Module(module) => {
-                        structs.extend(get_module_structs(module, path))
+                    ModuleOrCrateRoot::Module { module, real_path } => {
+                        structs.extend(get_module_structs(module, path, real_path))
                     }
                 };
 
@@ -126,14 +178,20 @@ impl ModuleOrFile<'_> {
 
     pub fn enums(&self, path: &ItemPath) -> Vec<Enum> {
         match self {
-            ModuleOrFile::InnerModule(module) => get_module_enums(module, path),
-            ModuleOrFile::SynFile(module, file) => {
-                let mut structs = get_file_enums(file, path);
+            ModuleOrFile::InnerModule {
+                module, real_path, ..
+            } => get_module_enums(module, path, real_path),
+            ModuleOrFile::SynFile {
+                module,
+                file,
+                real_path,
+            } => {
+                let mut structs = get_file_enums(file, path, real_path);
 
                 match module {
                     ModuleOrCrateRoot::CrateRoot => {}
-                    ModuleOrCrateRoot::Module(module) => {
-                        structs.extend(get_module_enums(module, path))
+                    ModuleOrCrateRoot::Module { module, real_path } => {
+                        structs.extend(get_module_enums(module, path, real_path))
                     }
                 };
 
@@ -144,12 +202,19 @@ impl ModuleOrFile<'_> {
 }
 
 impl ModuleOrCrateRoot<'_> {
+    fn span(&self) -> Option<CodeSpan> {
+        match self {
+            ModuleOrCrateRoot::CrateRoot => None,
+            ModuleOrCrateRoot::Module { module, .. } => Some(module.ident.span().into()),
+        }
+    }
+
     fn ident(&self) -> Ident {
-        let name = env::var("CARGO_PKG_NAME").unwrap();
+        let name = env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
         let name = name.replace('-', "_");
         match self {
             ModuleOrCrateRoot::CrateRoot => Ident::new(name.as_str(), Span::mixed_site()),
-            ModuleOrCrateRoot::Module(module) => module.ident.clone(),
+            ModuleOrCrateRoot::Module { module, .. } => module.ident.clone(),
         }
     }
 
@@ -158,7 +223,7 @@ impl ModuleOrCrateRoot<'_> {
             ModuleOrCrateRoot::CrateRoot => syn::Visibility::Public(VisPublic {
                 pub_token: Default::default(),
             }),
-            ModuleOrCrateRoot::Module(module) => module.vis.clone(),
+            ModuleOrCrateRoot::Module { module, .. } => module.vis.clone(),
         }
     }
 }
@@ -179,6 +244,30 @@ impl<'ast> Visit<'ast> for FileVisitor<'ast> {
                 } else {
                     None
                 }
+            })
+            // Filter out modules with cfg attr in CFG_FILTERS
+            .filter(|module| {
+                !module.attrs.iter().any(|attr| {
+                    let has_cfg = attr
+                        .path
+                        .segments
+                        .iter()
+                        .any(|segment| segment.ident == "cfg");
+                    if has_cfg {
+                        let meta = attr.parse_args::<Meta>();
+                        match meta {
+                            Ok(Meta::Path(path)) => path.segments.iter().any(|segment| {
+                                CFG_FILTERS
+                                    .lock()
+                                    .expect("lock free")
+                                    .contains(&segment.ident.to_string().as_str())
+                            }),
+                            _ => false,
+                        }
+                    } else {
+                        false
+                    }
+                })
             })
             .for_each(|module| {
                 if module.content.is_some() {
@@ -225,12 +314,12 @@ fn get_module_impls(module: &ItemMod, path: &ItemPath) -> Vec<Impl> {
     }
 }
 
-fn get_module_structs(module: &ItemMod, path: &ItemPath) -> Vec<Struct> {
+fn get_module_structs(module: &ItemMod, path: &ItemPath, real_path: &Path) -> Vec<Struct> {
     if let Some((_, items)) = &module.content {
         items
             .iter()
             .filter_map(|item| match item {
-                Item::Struct(struct_) => Some(Struct::from((struct_, path))),
+                Item::Struct(struct_) => Some(Struct::from_syn(struct_, path, real_path)),
                 _ => None,
             })
             .collect()
@@ -239,12 +328,12 @@ fn get_module_structs(module: &ItemMod, path: &ItemPath) -> Vec<Struct> {
     }
 }
 
-fn get_module_enums(module: &ItemMod, path: &ItemPath) -> Vec<Enum> {
+fn get_module_enums(module: &ItemMod, path: &ItemPath, real_path: &Path) -> Vec<Enum> {
     if let Some((_, items)) = &module.content {
         items
             .iter()
             .filter_map(|item| match item {
-                Item::Enum(enum_) => Some(Enum::from((enum_, path))),
+                Item::Enum(enum_) => Some(Enum::from_syn(enum_, path, real_path)),
                 _ => None,
             })
             .collect()
@@ -263,21 +352,21 @@ fn get_files_impls(file: &File, path: &ItemPath) -> Vec<Impl> {
         .collect()
 }
 
-fn get_file_structs(file: &File, path: &ItemPath) -> Vec<Struct> {
+fn get_file_structs(file: &File, path: &ItemPath, real_path: &Path) -> Vec<Struct> {
     file.items
         .iter()
         .filter_map(|item| match item {
-            Item::Struct(struct_) => Some(Struct::from((struct_, path))),
+            Item::Struct(struct_) => Some(Struct::from_syn(struct_, path, real_path)),
             _ => None,
         })
         .collect()
 }
 
-fn get_file_enums(file: &File, path: &ItemPath) -> Vec<Enum> {
+fn get_file_enums(file: &File, path: &ItemPath, real_path: &Path) -> Vec<Enum> {
     file.items
         .iter()
         .filter_map(|item| match item {
-            Item::Enum(enum_) => Some(Enum::from((enum_, path))),
+            Item::Enum(enum_) => Some(Enum::from_syn(enum_, path, real_path)),
             _ => None,
         })
         .collect()

@@ -50,17 +50,18 @@ impl ModuleTree {
 #[cfg(test)]
 mod condition_test {
     use crate::rule::structs::condition::struct_matches;
+    use speculoos::prelude::*;
 
     #[test]
     fn should_check_assertion() {
         let all = struct_matches();
         let matches = all.structs_that(|struct_| struct_.ident == "Ast");
-        println!("{:?}", matches);
+        assert_that!(matches.0).has_length(1);
 
         let matches = all.structs_that(|s| s.is_public());
-        println!("{:?}", matches);
+        assert_that!(matches.0).is_not_empty();
 
         let matches = all.structs_that(|s| !s.is_public());
-        println!("{:?}", matches);
+        assert_that!(matches.0).is_not_empty();
     }
 }

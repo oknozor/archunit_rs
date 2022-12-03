@@ -13,7 +13,7 @@ pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug + Clone, S: Subje
     pub(crate) conditions: VecDeque<C>,
     pub(crate) assertions: VecDeque<A>,
     pub(crate) subject: S,
-    pub(crate) assertion_result: AssertionResult,
+    pub(crate) assertion_results: AssertionResult,
 }
 
 /// The subject of an [`ArchRule`], `archunit-rs` load your crate Ast once and expose it via:
@@ -63,17 +63,23 @@ pub trait CheckRule<C: Condition, A: Assertion, S: Subject, T: assertable::Asser
         let mut rule = self.get_rule();
         rule.apply_conditions();
         rule.apply_assertions();
+        let result = rule.assertion_results();
+        if !result.actual.is_empty() {
+            panic!("{result}")
+        }
     }
 
     fn get_rule(self) -> T;
 }
 
 pub(super) mod assertable {
+    use crate::assertion_result::AssertionResult;
     use crate::rule::{Assertion, Condition, Subject};
 
     pub trait Assertable<C: Condition, A: Assertion, S: Subject> {
         fn apply_conditions(&mut self);
         fn apply_assertions(&mut self);
+        fn assertion_results(&self) -> &AssertionResult;
     }
 }
 
@@ -88,7 +94,7 @@ where
             conditions: VecDeque::new(),
             assertions: VecDeque::new(),
             subject: S::default(),
-            assertion_result: AssertionResult::new(),
+            assertion_results: AssertionResult::new(),
         }
     }
 }

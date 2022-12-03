@@ -9,7 +9,7 @@ use std::{
 use syn::{File as SynFile, Ident, Item};
 
 #[derive(Debug)]
-pub(crate) struct ModuleFilePath(PathBuf);
+pub(crate) struct ModuleFilePath(pub(crate) PathBuf);
 
 #[derive(Debug)]
 pub(crate) struct Ast(pub SynFile);
@@ -31,25 +31,23 @@ impl ModuleFilePath {
     }
 
     fn get_dir(&self) -> &Path {
-        self.0.parent().unwrap()
+        self.0
+            .parent()
+            .expect("Submodule path should have a parent")
     }
 
     pub fn crate_root() -> Self {
-        let working_directory = env::var("CARGO_MANIFEST_DIR").unwrap();
-        let lib_path = PathBuf::from_str(&working_directory)
-            .unwrap()
-            .join("src")
-            .join("lib.rs");
+        let working_directory =
+            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set");
+        let cargo_manifest_path = PathBuf::from_str(&working_directory)
+            .expect("CARGO_MANIFEST_DIR must point to a valid path");
+
+        let lib_path = cargo_manifest_path.join("src").join("lib.rs");
 
         if lib_path.exists() {
             Self(lib_path)
         } else {
-            Self(
-                PathBuf::from_str(&working_directory)
-                    .unwrap()
-                    .join("src")
-                    .join("main.rs"),
-            )
+            Self(cargo_manifest_path.join("src").join("main.rs"))
         }
     }
 }
@@ -58,7 +56,7 @@ impl ModuleAst {
     pub(crate) fn load_crate_ast() -> ModuleAst {
         let location = ModuleFilePath::crate_root();
         let ast = location.get_ast();
-        let name = env!("CARGO_CRATE_NAME", "'CARGO_CRATE_NAME' should be set").to_string();
+        let name = env!("CARGO_CRATE_NAME", "'CARGO_CRATE_NAME' should be set").to_owned();
         let name = name.replace('-', "_");
         let mut crate_root = ModuleAst {
             name,

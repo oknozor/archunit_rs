@@ -1,5 +1,7 @@
+use crate::assertion_result::AssertionResult;
 use crate::ast::enums::Enum;
 use crate::rule::assertable::Assertable;
+use crate::rule::enums::reports::EnumRuleViolation;
 use crate::rule::enums::{
     AssertionConjunction, AssertionToken, ConditionToken, EnumMatches,
     EnumPredicateConjunctionBuilder, SimpleAssertions,
@@ -35,7 +37,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
         }
 
         let mut conjunction = Conjunction::Or;
-        self.assertion_result.push_expected("Structs that ");
+        self.assertion_results.push_expected("Structs that ");
 
         while let Some(condition) = self.conditions.pop_back() {
             let match_against = match conjunction {
@@ -45,45 +47,45 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
 
             let matches_for_condition = match condition {
                 ConditionToken::AreDeclaredPublic => {
-                    self.assertion_result.push_expected("are declared public");
+                    self.assertion_results.push_expected("are declared public");
                     match_against.enums_that(Enum::is_public)
                 }
                 ConditionToken::AreDeclaredPrivate => {
-                    self.assertion_result.push_expected("are declared private");
+                    self.assertion_results.push_expected("are declared private");
                     match_against.enums_that(|enum_| !enum_.is_public())
                 }
                 ConditionToken::HaveSimpleName(name) => {
-                    self.assertion_result
-                        .push_expected(format!("have simple name '{}'", name));
+                    self.assertion_results
+                        .push_expected(format!("have simple name '{name}'"));
                     match_against.enums_that(|enum_| enum_.ident == name)
                 }
                 ConditionToken::ResidesInAModule(name) => {
-                    self.assertion_result
-                        .push_expected(format!("resides in a modules that match '{}'", name));
+                    self.assertion_results
+                        .push_expected(format!("resides in a modules that match '{name}'"));
                     match_against.enums_that(|enum_| enum_.path_match(&name))
                 }
                 ConditionToken::And => {
-                    self.assertion_result.push_expected(" and ");
+                    self.assertion_results.push_expected(" and ");
                     conjunction = Conjunction::And;
                     continue;
                 }
                 ConditionToken::Or => {
-                    self.assertion_result.push_expected(" or ");
+                    self.assertion_results.push_expected(" or ");
                     conjunction = Conjunction::Or;
                     continue;
                 }
                 ConditionToken::Should => {
-                    self.assertion_result.push_expected(" to ");
+                    self.assertion_results.push_expected(" to ");
                     break;
                 }
                 ConditionToken::Derives(trait_) => {
                     let expected = format!("derive {trait_}");
-                    self.assertion_result.push_expected(&expected);
+                    self.assertion_results.push_expected(&expected);
                     match_against.enums_that(|enum_| enum_.derives(&trait_))
                 }
                 ConditionToken::Implement(trait_) => {
                     let expected = format!("implement {trait_}");
-                    self.assertion_result.push_expected(&expected);
+                    self.assertion_results.push_expected(&expected);
                     let imps = impl_matches()
                         .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(&trait_)));
                     let types = imps.types();
@@ -114,7 +116,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
                 AssertionToken::SimpleAssertion(assertion) => match assertion {
                     SimpleAssertions::BePublic => self.assert_public(),
                     SimpleAssertions::BePrivate => self.assert_private(),
-                    SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(name),
+                    SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(&name),
                     SimpleAssertions::Implement(trait_) => self.assert_implement(&trait_),
                     SimpleAssertions::ImplementOrDerive(trait_) => {
                         self.assert_implement_or_derive(&trait_)
@@ -138,16 +140,16 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
                 Conjunction::And => success = success && assertion_outcome,
             };
         }
+    }
 
-        if !success {
-            panic!("\n{}", self.assertion_result)
-        }
+    fn assertion_results(&self) -> &AssertionResult {
+        &self.assertion_results
     }
 }
 
 impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
     fn assert_public(&mut self) -> bool {
-        self.assertion_result.push_expected("be public");
+        self.assertion_results.push_expected("be public");
         let non_public_struct = self
             .subject
             .0
@@ -155,49 +157,44 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             .filter(|enum_| !enum_.is_public())
             .collect::<Vec<_>>();
 
-        if !non_public_struct.is_empty() {
-            self.assertion_result
-                .push_actual("the following enums are not public:\n");
-            non_public_struct.iter().for_each(|enum_| {
-                self.assertion_result.push_actual(format!(
-                    "\t{} - visibility : {:?}\n",
-                    enum_.path, enum_.visibility
-                ))
-            });
-            false
-        } else {
-            true
+        for enum_ in &non_public_struct {
+            self.assertion_results
+                .push_actual(EnumRuleViolation::be_public(
+                    enum_.span,
+                    &enum_.location,
+                    enum_.ident.clone(),
+                    enum_.visibility,
+                ));
         }
+
+        non_public_struct.is_empty()
     }
 
     fn assert_private(&mut self) -> bool {
-        self.assertion_result.push_expected("be private");
-        let public_structs = self
+        self.assertion_results.push_expected("be private");
+        let public_enum = self
             .subject
             .0
             .iter()
             .filter(|enum_| enum_.is_public())
             .collect::<Vec<_>>();
 
-        if !public_structs.is_empty() {
-            self.assertion_result
-                .push_actual("the following enums are public:\n");
-            public_structs.iter().for_each(|enum_| {
-                self.assertion_result.push_actual(format!(
-                    "\t{} - visibility : {:?}\n",
-                    enum_.path, enum_.visibility
+        for enum_ in &public_enum {
+            self.assertion_results
+                .push_actual(EnumRuleViolation::be_private(
+                    enum_.span,
+                    &enum_.location,
+                    enum_.ident.clone(),
+                    enum_.visibility,
                 ))
-            });
-
-            false
-        } else {
-            true
         }
+
+        public_enum.is_empty()
     }
 
-    fn assert_simple_name(&mut self, name: String) -> bool {
-        self.assertion_result
-            .push_expected(format!("have simple name '{}'", name));
+    fn assert_simple_name(&mut self, name: &str) -> bool {
+        self.assertion_results
+            .push_expected(format!("have simple name '{name}'"));
         let enum_with_non_matching_name = self
             .subject
             .0
@@ -205,22 +202,21 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             .filter(|enum_| enum_.ident != name)
             .collect::<Vec<_>>();
 
-        if !enum_with_non_matching_name.is_empty() {
-            self.assertion_result
-                .push_actual("the following enums have a different name:\n");
-            enum_with_non_matching_name.iter().for_each(|enum_| {
-                self.assertion_result
-                    .push_actual(format!("{}\n", enum_.path))
-            });
-
-            false
-        } else {
-            true
+        for enum_ in &enum_with_non_matching_name {
+            self.assertion_results
+                .push_actual(EnumRuleViolation::have_simple(
+                    enum_.span,
+                    name.to_owned(),
+                    &enum_.location,
+                    enum_.ident.clone(),
+                ))
         }
+
+        enum_with_non_matching_name.is_empty()
     }
 
     fn assert_derives(&mut self, trait_: &String) -> bool {
-        self.assertion_result
+        self.assertion_results
             .push_expected(format!("derive '{trait_}'"));
 
         let enum_without_expected_derive = self
@@ -230,23 +226,21 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             .filter(|enum_| !enum_.derives.contains(trait_))
             .collect::<Vec<_>>();
 
-        if !enum_without_expected_derive.is_empty() {
-            self.assertion_result.push_actual(&format!(
-                "the following enums does not derive '{trait_}':\n"
-            ));
-            enum_without_expected_derive.iter().for_each(|enum_| {
-                self.assertion_result
-                    .push_actual(format!("\t- {}\n", enum_.path))
-            });
-
-            false
-        } else {
-            true
+        for enum_ in &enum_without_expected_derive {
+            self.assertion_results
+                .push_actual(EnumRuleViolation::derive(
+                    enum_.span,
+                    &enum_.location,
+                    enum_.ident.clone(),
+                    trait_.clone(),
+                ))
         }
+
+        enum_without_expected_derive.is_empty()
     }
 
     fn assert_implement(&mut self, trait_: &String) -> bool {
-        self.assertion_result
+        self.assertion_results
             .push_expected(format!("implement '{trait_}'"));
 
         let enum_without_expected_impl = self
@@ -262,23 +256,21 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             })
             .collect::<Vec<_>>();
 
-        if !enum_without_expected_impl.is_empty() {
-            self.assertion_result.push_actual(&format!(
-                "the following enums does not implement '{trait_}':\n"
-            ));
-            enum_without_expected_impl.iter().for_each(|enum_| {
-                self.assertion_result
-                    .push_actual(format!("\t- {}\n", enum_.path))
-            });
-
-            false
-        } else {
-            true
+        for enum_ in &enum_without_expected_impl {
+            self.assertion_results
+                .push_actual(EnumRuleViolation::implement(
+                    enum_.span,
+                    &enum_.location,
+                    enum_.ident.clone(),
+                    trait_.clone(),
+                ))
         }
+
+        enum_without_expected_impl.is_empty()
     }
 
     fn assert_implement_or_derive(&mut self, trait_: &String) -> bool {
-        self.assertion_result
+        self.assertion_results
             .push_expected(format!("derive '{trait_}'"));
 
         let derive_set = self
@@ -304,20 +296,17 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             .collect::<HashSet<_>>();
 
         let intersection: Vec<&&&Enum> = impl_set.intersection(&derive_set).collect();
-        if !intersection.is_empty() {
-            self.assertion_result.push_actual(&format!(
-                "the following structs does not derive or implement '{trait_}':\n"
-            ));
-
-            intersection.iter().for_each(|struct_| {
-                self.assertion_result
-                    .push_actual(format!("\t- {}\n", struct_.path))
-            });
-
-            false
-        } else {
-            true
+        for enum_ in &intersection {
+            self.assertion_results
+                .push_actual(EnumRuleViolation::implement_or_derive(
+                    enum_.span,
+                    &enum_.location,
+                    enum_.ident.clone(),
+                    trait_.clone(),
+                ))
         }
+
+        intersection.is_empty()
     }
 }
 

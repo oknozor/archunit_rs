@@ -49,7 +49,7 @@ fn arch_rules() {
         .only_have_dependency_module()
         .that()
         .have_simple_name("baz")
-        .check()
+        .check();
 
     Enums::all_should()
         .implement_or_derive("Debug")
