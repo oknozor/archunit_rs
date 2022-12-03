@@ -7,8 +7,11 @@ edition = "2021"
 
 [dependencies]
 syn = { version = "*", features = ["full", "extra-traits", "visit"] }
+proc-macro2 = { version = "1.0.47", default-features = false, features = ["span-locations"] }
 once_cell = "1.9.0"
 wildmatch = "2.1.1"
-
+miette = { version = "5.5.0", features = ["fancy"] }
+thiserror = "1.0.37"
+eyre = "0.6.8"
 [dev-dependencies]
-speculoos = "0.10.0"
+speculoos = "0.11.0"

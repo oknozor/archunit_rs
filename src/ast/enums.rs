@@ -1,17 +1,21 @@
-use crate::ast::{ItemPath, Visibility};
+use crate::ast::{CodeSpan, ItemPath, Visibility};
+use std::path::{Path, PathBuf};
+use syn::spanned::Spanned;
 use syn::{ItemEnum, Meta, NestedMeta};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Enum {
     // parse me with quote to handle generics
+    pub span: CodeSpan,
+    pub location: PathBuf,
     pub ident: String,
     pub derives: Vec<String>,
     pub visibility: Visibility,
     pub path: ItemPath,
 }
 
-impl From<(&ItemEnum, &ItemPath)> for Enum {
-    fn from((enum_, path): (&ItemEnum, &ItemPath)) -> Self {
+impl Enum {
+    pub(crate) fn from_syn(enum_: &ItemEnum, path: &ItemPath, real_path: &Path) -> Self {
         let ident = enum_.ident.to_string();
         let path = path.join(&ident);
         let derives = enum_
@@ -54,6 +58,8 @@ impl From<(&ItemEnum, &ItemPath)> for Enum {
             .collect();
 
         Self {
+            span: enum_.span().into(),
+            location: real_path.to_path_buf(),
             ident,
             derives,
             visibility: Visibility::from_syn(&enum_.vis),
@@ -72,6 +78,6 @@ impl Enum {
     }
 
     pub fn derives(&self, trait_: &str) -> bool {
-        self.derives.contains(&trait_.to_string())
+        self.derives.contains(&trait_.to_owned())
     }
 }

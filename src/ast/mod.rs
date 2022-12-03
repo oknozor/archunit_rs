@@ -1,10 +1,14 @@
+use miette::SourceSpan;
 use std::fmt;
 use std::fmt::Formatter;
+use std::path::PathBuf;
 
 use crate::ast::enums::Enum;
 use impl_blocks::Impl;
 use once_cell::sync::OnceCell;
 use structs::Struct;
+use syn::__private::Span;
+use syn::spanned::Spanned;
 use syn::{ItemUse, UseTree};
 
 use crate::ast::parse::ModuleAst;
@@ -24,7 +28,9 @@ pub fn module_tree() -> &'static ModuleTree {
 
 #[derive(Debug)]
 pub struct ModuleTree {
+    pub span: Option<CodeSpan>,
     pub dependencies: Vec<ModuleUse>,
+    pub real_path: PathBuf,
     pub path: ItemPath,
     pub ident: String,
     pub visibility: Visibility,
@@ -45,7 +51,7 @@ impl ItemPath {
     }
     pub fn empty() -> Self {
         ItemPath {
-            inner: "".to_string(),
+            inner: "".to_owned(),
         }
     }
 
@@ -61,6 +67,19 @@ impl ItemPath {
         }
         item_path.inner.push_str(path.as_ref());
         item_path
+    }
+
+    pub fn reside_in_any<S>(&self, allowed: &[S]) -> bool
+    where
+        S: AsRef<str>,
+    {
+        allowed
+            .iter()
+            .any(|allowed| self.inner.starts_with(allowed.as_ref()))
+    }
+
+    pub fn reside_in(&self, module: &str) -> bool {
+        self.inner.starts_with(module)
     }
 
     pub fn match_module_path(&self, pattern: &str) -> bool {
@@ -93,6 +112,40 @@ impl fmt::Display for ItemPath {
 #[derive(Debug)]
 pub struct ModuleUse {
     pub parts: String,
+    pub span: CodeSpan,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CodeSpan {
+    pub(crate) start: LineColumn,
+    pub(crate) end: LineColumn,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LineColumn {
+    pub line: usize,
+    pub column: usize,
+}
+
+impl From<CodeSpan> for SourceSpan {
+    fn from(value: CodeSpan) -> Self {
+        (value.start.column, value.end.column - value.start.column).into()
+    }
+}
+
+impl From<Span> for CodeSpan {
+    fn from(span: Span) -> Self {
+        Self {
+            start: LineColumn {
+                line: span.start().line,
+                column: span.start().column,
+            },
+            end: LineColumn {
+                line: span.end().line,
+                column: span.end().column,
+            },
+        }
+    }
 }
 
 impl From<&ItemUse> for ModuleUse {
@@ -108,7 +161,19 @@ impl From<&ItemUse> for ModuleUse {
             }
         }
 
-        ModuleUse { parts }
+        ModuleUse {
+            parts,
+            span: CodeSpan {
+                start: LineColumn {
+                    line: item_use.span().start().line,
+                    column: item_use.span().start().column,
+                },
+                end: LineColumn {
+                    line: item_use.span().end().line,
+                    column: item_use.span().end().column,
+                },
+            },
+        }
     }
 }
 
@@ -152,22 +217,24 @@ impl Visibility {
 impl SynModuleTree<'_> {
     pub(crate) fn to_tree(&self, path: &ItemPath) -> ModuleTree {
         let visibility = Visibility::from_syn(&self.module.vis());
-
         let dependencies = self.module.deps();
         let ident = self.module.ident().to_string();
         let path = path.join(ident.as_str());
         let structs = self.module.structs(&path);
         let enums = self.module.enums(&path);
         let impl_blocks = self.module.impls(&path);
-
+        let real_path = self.module.real_path();
         let submodules = self
             .submodules
             .iter()
             .map(|syn_module| syn_module.to_tree(&path))
             .collect();
+        let span = self.module.span();
 
         ModuleTree {
+            span,
             dependencies,
+            real_path,
             path,
             ident,
             visibility,
@@ -176,5 +243,44 @@ impl SynModuleTree<'_> {
             impl_blocks,
             submodules,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::ast::ItemPath;
+    use speculoos::prelude::*;
+
+    #[test]
+    fn should_reside_in_works() {
+        let path = ItemPath {
+            inner: "foo::bar::baz".to_string(),
+        };
+
+        assert_that!(path.reside_in("foo")).is_true();
+        assert_that!(path.reside_in("foo::bar")).is_true();
+        assert_that!(path.reside_in("foo::bar:biz")).is_false();
+        assert_that!(path.reside_in("bar::foo")).is_false();
+    }
+
+    #[test]
+    fn should_reside_in_any() {
+        let path = ItemPath {
+            inner: "foo::bar::baz".to_string(),
+        };
+
+        assert_that!(path.reside_in_any(&[
+            &"foo".to_string(),
+            &"biz".to_string(),
+            &"bar".to_string()
+        ]))
+        .is_true();
+        assert_that!(path.reside_in_any(&[
+            &"foo::bar".to_string(),
+            &"biz".to_string(),
+            &"bar".to_string()
+        ]))
+        .is_true();
+        assert_that!(path.reside_in_any(&[&"biz".to_string(), &"bar".to_string()])).is_false();
     }
 }

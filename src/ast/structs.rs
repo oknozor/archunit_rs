@@ -1,8 +1,12 @@
-use crate::ast::{ItemPath, Visibility};
+use crate::ast::{CodeSpan, ItemPath, Visibility};
+use std::path::{Path, PathBuf};
+use syn::spanned::Spanned;
 use syn::{ItemStruct, Meta, NestedMeta};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Struct {
+    pub span: CodeSpan,
+    pub real_path: PathBuf,
     // parse me with quote to handle generics
     pub ident: String,
     pub derives: Vec<String>,
@@ -11,8 +15,8 @@ pub struct Struct {
     pub path: ItemPath,
 }
 
-impl From<(&ItemStruct, &ItemPath)> for Struct {
-    fn from((struct_, path): (&ItemStruct, &ItemPath)) -> Self {
+impl Struct {
+    pub fn from_syn(struct_: &ItemStruct, path: &ItemPath, real_path: &Path) -> Self {
         let ident = struct_.ident.to_string();
         let path = path.join(&ident);
         let derives = struct_
@@ -54,9 +58,11 @@ impl From<(&ItemStruct, &ItemPath)> for Struct {
             .flatten()
             .collect();
 
-        let fields = struct_.fields.iter().enumerate().map(Field::from).collect();
-
+        let fields = struct_.fields.iter().map(Field::from).collect();
+        let span = struct_.ident.span().into();
         Self {
+            span,
+            real_path: real_path.to_path_buf(),
             ident,
             derives,
             visibility: Visibility::from_syn(&struct_.vis),
@@ -69,20 +75,17 @@ impl From<(&ItemStruct, &ItemPath)> for Struct {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Field {
     pub visibility: Visibility,
-    pub name: String,
+    pub name: Option<String>,
+    pub span: CodeSpan,
     pub type_: String,
 }
 
-impl From<(usize, &syn::Field)> for Field {
-    fn from((idx, field): (usize, &syn::Field)) -> Self {
+impl From<&syn::Field> for Field {
+    fn from(field: &syn::Field) -> Self {
         Self {
             visibility: Visibility::from_syn(&field.vis),
-            name: field
-                .ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| idx.to_string()),
-            // todo: format this correctly
+            name: field.ident.as_ref().map(|ident| ident.to_string()),
+            span: field.span().into(),
             type_: format!("{:?}", field.ty),
         }
     }
@@ -102,7 +105,7 @@ impl Struct {
     }
 
     pub fn derives(&self, trait_: &str) -> bool {
-        self.derives.contains(&trait_.to_string())
+        self.derives.contains(&trait_.to_owned())
     }
 
     pub fn has_non_public_field(&self) -> bool {

@@ -5,20 +5,23 @@ use crate::rule::{
 };
 use crate::ModuleTree;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 mod check;
 mod condition;
+mod report;
 
 /// A unit struct giving access to module assertions:
 /// **Example:**
 /// ```rust
-/// use archunit_rs::rule::ArchRuleBuilder;
+/// use archunit_rs::rule::{ArchRuleBuilder, CheckRule};
 /// use archunit_rs::rule::modules::Modules;
 ///
 /// Modules::that()
-/// .have_simple_name("archunit_rs")
-/// .should()
-/// .be_public();
+///     .have_simple_name("archunit_rs")
+///     .should()
+///     .be_public()
+///     .check();
 /// ```
 #[derive(Debug)]
 pub struct Modules;
@@ -27,7 +30,9 @@ pub struct Modules;
 pub struct ModuleMatches(pub HashMap<&'static ItemPath, &'static ModuleTree>);
 
 #[derive(Default, Debug)]
-pub struct ModuleDependencies(pub HashMap<&'static ItemPath, &'static Vec<ModuleUse>>);
+pub struct ModuleDependencies(
+    pub HashMap<&'static ItemPath, (&'static PathBuf, &'static Vec<ModuleUse>)>,
+);
 
 impl ModuleMatches {
     pub fn extend(&mut self, other: ModuleMatches) {
@@ -100,7 +105,7 @@ impl ModuleConditionBuilder {
     pub fn reside_in_a_module(mut self, module: &str) -> ModuleConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::ResidesInAModule(module.to_string()));
+            .push_front(ConditionToken::ResidesInAModule(module.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 
@@ -121,7 +126,7 @@ impl ModuleConditionBuilder {
     pub fn have_simple_name(mut self, name: &str) -> ModuleConditionConjunctionBuilder {
         self.0
             .conditions
-            .push_front(ConditionToken::HaveSimpleName(name.to_string()));
+            .push_front(ConditionToken::HaveSimpleName(name.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 }
@@ -148,7 +153,7 @@ impl ModulePredicateBuilder {
         self.0
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
-                SimpleAssertions::HaveSimpleName(name.to_string()),
+                SimpleAssertions::HaveSimpleName(name.to_owned()),
             ));
         PredicateConjunctionBuilder(self.0)
     }
@@ -238,7 +243,7 @@ mod module_test {
                 ConditionToken::Or,
                 ConditionToken::AreDeclaredPrivate,
                 ConditionToken::And,
-                ConditionToken::ResidesInAModule("foo::bar".to_string()),
+                ConditionToken::ResidesInAModule("foo::bar".to_owned()),
             ]
             .iter(),
         );

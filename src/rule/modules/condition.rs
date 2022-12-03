@@ -34,14 +34,14 @@ impl ModuleTree {
 
     pub(crate) fn flatten_deps(&'static self) -> ModuleDependencies {
         let mut modules = HashMap::new();
-        modules.insert(&self.path, &self.dependencies);
+        modules.insert(&self.path, (&self.real_path, &self.dependencies));
 
         self.submodules
             .iter()
             .flat_map(|sub| sub.flatten().0)
-            .map(|(p, m)| (p, &m.dependencies))
-            .for_each(|(path, deps)| {
-                modules.insert(path, deps);
+            .map(|(p, m)| (p, &m.real_path, &m.dependencies))
+            .for_each(|(path, real_path, deps)| {
+                modules.insert(path, (real_path, deps));
             });
 
         ModuleDependencies(modules)
@@ -50,11 +50,34 @@ impl ModuleTree {
 
 #[cfg(test)]
 mod condition_test {
+    use crate::ast::module_tree;
     use crate::rule::assertable::Assertable;
     use speculoos::prelude::*;
 
     use crate::rule::modules::Modules;
     use crate::rule::ArchRuleBuilder;
+
+    #[test]
+    fn filter_out_a_module_and_its_children() {
+        let matches =
+            module_tree().module_that(|module| !module.path.reside_in("archunit_rs::rule"));
+        let matches: Vec<String> = matches.0.keys().map(|path| path.to_string()).collect();
+
+        for path in matches {
+            assert_that!(path.starts_with("archunit_rs::rule")).is_false();
+        }
+    }
+
+    #[test]
+    fn keep_only_a_module_and_its_children() {
+        let matches =
+            module_tree().module_that(|module| module.path.reside_in("archunit_rs::rule"));
+        let matches: Vec<String> = matches.0.keys().map(|path| path.to_string()).collect();
+
+        for path in matches {
+            assert_that!(path).starts_with("archunit_rs::rule");
+        }
+    }
 
     #[test]
     fn should_filter_modules_with_and_conjunctions() {
@@ -73,7 +96,7 @@ mod condition_test {
             .map(|key| key.as_str())
             .collect::<Vec<&str>>();
 
-        assert_that!(arch_rule.0.assertion_result.expected).is_equal_to(
+        assert_that!(arch_rule.0.assertion_results.expected).is_equal_to(
             &"Modules that resides in a modules that match '*::modules' and have simple name 'condition'"
                 .to_string(),
         );
@@ -98,7 +121,7 @@ mod condition_test {
             .map(|key| key.as_str())
             .collect::<Vec<&str>>();
 
-        assert_that!(arch_rule.assertion_result.expected).is_equal_to(
+        assert_that!(arch_rule.assertion_results.expected).is_equal_to(
             &"Modules that resides in a modules that match 'archunit_rs::rule::modules::*' or have simple name 'ast'"
                 .to_string(),
         );
