@@ -82,3 +82,26 @@ Why write a diagram or an architecture document when you can simply write a unit
 serve as a architecture documentation and enforce it as the same time ?
 
 
+## TODO
+
+1. logical conjuction
+Handle Or and And conjuction with the new report model.
+i.e. reports should be added to the final result only if the conjuction
+result in a logical failure.
+ex: Struct::all().should().be_public().or().be_private().check() should not fail
+
+2. Nice API for filtering Modules
+currently :  Structs::that(filter).... Assertions
+should be :  Structs::filtering(filter).that() ... Assertions
+
+3. Stabilize layer assertions
+
+4. Make sure all report are correct (message + code samples)
+
+5. Docs
+
+6. Book
+
+7. Alpha
+
+8. impl blocks and fn Assertions
