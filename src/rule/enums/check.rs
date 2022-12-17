@@ -102,7 +102,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
         self.subject = matches
     }
 
-    fn apply_assertions(&mut self) {
+    fn apply_assertions(&mut self) -> bool {
         enum Conjunction {
             Or,
             And,
@@ -140,6 +140,8 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
                 Conjunction::And => success = success && assertion_outcome,
             };
         }
+
+        success
     }
 
     fn assertion_results(&self) -> &AssertionResult {
@@ -351,6 +353,28 @@ mod condition_test {
             .have_simple_name("AssertionToken")
             .should()
             .implement("Debug")
+            .check();
+    }
+
+    #[test]
+    fn should_check_with_or_condition_operator() {
+        Enums::that(Filters::default())
+            .have_simple_name("AssertionToken")
+            .or()
+            .have_simple_name("AssertionResult")
+            .should()
+            .derive("Debug")
+            .check();
+    }
+
+    #[test]
+    fn should_check_with_or_assertion_operator() {
+        Enums::that(Filters::default())
+            .have_simple_name("AssertionToken")
+            .should()
+            .derive("Debug")
+            .or_should()
+            .derive("PartialOrd")
             .check();
     }
 

@@ -64,9 +64,9 @@ pub trait CheckRule<C: Condition, A: Assertion, S: Subject, T: assertable::Asser
     fn check(self) {
         let mut rule = self.get_rule();
         rule.apply_conditions();
-        rule.apply_assertions();
-        let result = rule.assertion_results();
-        if !result.actual.is_empty() {
+        let success = rule.apply_assertions();
+        if !success {
+            let result = rule.assertion_results();
             panic!("{result}")
         }
     }
@@ -80,7 +80,7 @@ pub(super) mod assertable {
 
     pub trait Assertable<C: Condition, A: Assertion, S: Subject> {
         fn apply_conditions(&mut self);
-        fn apply_assertions(&mut self);
+        fn apply_assertions(&mut self) -> bool;
         fn assertion_results(&self) -> &AssertionResult;
     }
 }
