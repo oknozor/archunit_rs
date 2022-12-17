@@ -143,7 +143,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
         self.subject = matches
     }
 
-    fn apply_assertions(&mut self) {
+    fn apply_assertions(&mut self) -> bool {
         enum Conjunction {
             Or,
             And,
@@ -215,6 +215,8 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                 Conjunction::And => success = success && assertion_outcome,
             };
         }
+
+        success
     }
 
     fn assertion_results(&self) -> &AssertionResult {
