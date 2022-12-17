@@ -13,10 +13,11 @@ pub mod reports;
 ///
 /// **Example:**
 /// ```rust
+/// use archunit_rs::Filters;
 /// use archunit_rs::rule::ArchRuleBuilder;
 /// use archunit_rs::rule::structs::Structs;
 ///
-/// Structs::that()
+/// Structs::that(Filters::default())
 /// .have_simple_name("PredicateBuilder")
 /// .should()
 /// .only_have_private_fields()
@@ -295,11 +296,12 @@ mod test {
     use crate::rule::structs::ConditionToken;
     use crate::rule::structs::{AssertionConjunction, AssertionToken, SimpleAssertions, Structs};
     use crate::rule::ArchRuleBuilder;
+    use crate::Filters;
     use speculoos::prelude::*;
 
     #[test]
     fn should_build_arch_rule_for_struct() {
-        let rule = Structs::that()
+        let rule = Structs::that(Filters::default())
             .derives("Debug")
             .and()
             .implement("Display")
@@ -329,11 +331,11 @@ mod test {
                 ConditionToken::And,
                 ConditionToken::AreDeclaredPrivate,
                 ConditionToken::And,
-                ConditionToken::ResidesInAModule("::check".to_string()),
+                ConditionToken::ResidesInAModule("::check".to_owned()),
                 ConditionToken::Or,
-                ConditionToken::Implement("Display".to_string()),
+                ConditionToken::Implement("Display".to_owned()),
                 ConditionToken::And,
-                ConditionToken::Derives("Debug".to_string()),
+                ConditionToken::Derives("Debug".to_owned()),
             ]
             .iter(),
         );

@@ -14,10 +14,11 @@ mod report;
 /// A unit struct giving access to module assertions:
 /// **Example:**
 /// ```rust
+/// use archunit_rs::Filters;
 /// use archunit_rs::rule::{ArchRuleBuilder, CheckRule};
 /// use archunit_rs::rule::modules::Modules;
 ///
-/// Modules::that()
+/// Modules::that(Filters::default())
 ///     .have_simple_name("archunit_rs")
 ///     .should()
 ///     .be_public()
@@ -217,11 +218,12 @@ mod module_test {
         DependencyAssertionConjunction, Modules, SimpleAssertions,
     };
     use crate::rule::ArchRuleBuilder;
+    use crate::Filters;
     use speculoos::prelude::*;
 
     #[test]
     fn should_build_arch_rule_for_module() {
-        let rule = Modules::that()
+        let rule = Modules::that(Filters::default())
             .reside_in_a_module("foo::bar")
             .and()
             .are_declared_private()
@@ -255,7 +257,7 @@ mod module_test {
                 AssertionToken::SimpleAssertion(SimpleAssertions::BePublic),
                 AssertionToken::Conjunction(AssertionConjunction::AndShould),
                 AssertionToken::SimpleAssertion(SimpleAssertions::HaveSimpleName(
-                    "toto".to_string(),
+                    "toto".to_owned(),
                 )),
                 AssertionToken::DependencyAssertion(DependencyAssertion::That),
                 AssertionToken::DependencyAssertionConjunction(

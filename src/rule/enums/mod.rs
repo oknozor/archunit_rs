@@ -13,10 +13,11 @@ use std::collections::HashSet;
 ///
 /// **Example:**
 /// ```rust
+/// use archunit_rs::Filters;
 /// use archunit_rs::rule::ArchRuleBuilder;
 /// use archunit_rs::rule::enums::Enums;
 ///
-/// Enums::that()
+/// Enums::that(Filters::default())
 ///     .have_simple_name("ConditionToken")
 ///     .should()
 ///     .be_public();
@@ -261,11 +262,12 @@ mod test {
         AssertionConjunction, AssertionToken, ConditionToken, Enums, SimpleAssertions,
     };
     use crate::rule::ArchRuleBuilder;
+    use crate::Filters;
     use speculoos::prelude::*;
 
     #[test]
     fn should_build_arch_rule_for_struct() {
-        let rule = Enums::that()
+        let rule = Enums::that(Filters::default())
             .derives("Debug")
             .and()
             .implement("Display")

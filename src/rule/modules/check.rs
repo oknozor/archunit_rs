@@ -29,7 +29,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
 {
     fn apply_conditions(&mut self) {
         let mut matches = ModuleMatches::default();
-        let modules = module_tree().flatten();
+        let modules = module_tree().flatten(&self.filters);
 
         enum Conjunction {
             Or,
@@ -51,7 +51,9 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                     match_against
                         .0
                         .values()
-                        .flat_map(|module| module.module_that(|sub| sub.is_public()).0)
+                        .flat_map(|module| {
+                            module.module_that(|sub| sub.is_public(), &self.filters).0
+                        })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::AreDeclaredPrivate => {
@@ -59,7 +61,9 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                     match_against
                         .0
                         .values()
-                        .flat_map(|module| module.module_that(|sub| !sub.is_public()).0)
+                        .flat_map(|module| {
+                            module.module_that(|sub| !sub.is_public(), &self.filters).0
+                        })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::HaveSimpleName(name) => {
@@ -69,7 +73,9 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                     match_against
                         .0
                         .values()
-                        .flat_map(|module| module.module_that(|sub| sub.ident == name).0)
+                        .flat_map(|module| {
+                            module.module_that(|sub| sub.ident == name, &self.filters).0
+                        })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::HaveSimpleEndingWith(pattern) => {
@@ -79,7 +85,9 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .0
                         .values()
                         .flat_map(|module| {
-                            module.module_that(|sub| sub.ident.ends_with(&pattern)).0
+                            module
+                                .module_that(|sub| sub.ident.ends_with(&pattern), &self.filters)
+                                .0
                         })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
@@ -91,7 +99,9 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         .0
                         .values()
                         .flat_map(|module| {
-                            module.module_that(|sub| sub.ident.starts_with(&pattern)).0
+                            module
+                                .module_that(|sub| sub.ident.starts_with(&pattern), &self.filters)
+                                .0
                         })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
@@ -101,7 +111,11 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                     match_against
                         .0
                         .values()
-                        .flat_map(|module| module.module_that(|sub| sub.path_match(&name)).0)
+                        .flat_map(|module| {
+                            module
+                                .module_that(|sub| sub.path_match(&name), &self.filters)
+                                .0
+                        })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
                 ConditionToken::And => {
@@ -288,7 +302,7 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             .subject
             .0
             .values()
-            .map(|module| module.flatten_deps())
+            .map(|module| module.flatten_deps(&self.filters))
             .collect::<Vec<_>>();
 
         let mut per_module_mismatch = vec![];
@@ -348,13 +362,13 @@ mod condition_test {
     use crate::ast::{CodeSpan, ModuleUse};
     use crate::rule::modules::Modules;
     use crate::rule::{ArchRuleBuilder, CheckRule};
-    use crate::ModuleFilters;
+    use crate::Filters;
     use speculoos::prelude::*;
 
     #[test]
     fn should_match_module_use_start() {
         let module_usage = ModuleUse {
-            parts: "archunit_rs::rule::enums::Enums".to_string(),
+            parts: "archunit_rs::rule::enums::Enums".to_owned(),
             span: CodeSpan::default(),
         };
 
@@ -366,7 +380,7 @@ mod condition_test {
     #[test]
     fn should_match_module_use_start_start_when_usage_start_with_crate() {
         let module_usage = ModuleUse {
-            parts: "crate::rule::enums::Enums".to_string(),
+            parts: "crate::rule::enums::Enums".to_owned(),
             span: CodeSpan::default(),
         };
 
@@ -378,7 +392,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_assertion() {
-        Modules::that()
+        Modules::that(Filters::default())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")
@@ -389,9 +403,7 @@ mod condition_test {
 
     #[test]
     fn should_check_dependency_assertions_excluding_cfg_test() {
-        ModuleFilters::default().exclude_test();
-
-        Modules::that()
+        Modules::that(Filters::default().exclude_test())
             .have_simple_name("pattern")
             .should()
             .only_have_dependency_module()
@@ -403,7 +415,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_dependency_assertions() {
-        Modules::that()
+        Modules::that(Filters::default())
             .have_simple_name("pattern")
             .should()
             .only_have_dependency_module()

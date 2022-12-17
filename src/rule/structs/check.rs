@@ -29,7 +29,7 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
     for ArchRule<ConditionToken, AssertionToken, StructMatches>
 {
     fn apply_conditions(&mut self) {
-        let structs = struct_matches();
+        let structs = struct_matches(&self.filters);
 
         if self.conditions.is_empty() {
             self.assertion_results.push_expected("All structs should ");
@@ -49,7 +49,7 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
 
         while let Some(condition) = self.conditions.pop_back() {
             let match_against = match conjunction {
-                Conjunction::Or => structs,
+                Conjunction::Or => &structs,
                 Conjunction::And => &matches,
             };
 
@@ -100,7 +100,7 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
                 ConditionToken::Implement(trait_) => {
                     let expected = format!("implement {trait_}");
                     self.assertion_results.push_expected(&expected);
-                    let imps = impl_matches()
+                    let imps = impl_matches(&self.filters)
                         .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(&trait_)));
                     let types = imps.types();
                     match_against.structs_that(|struct_| types.contains(&struct_.ident.as_str()))
@@ -269,8 +269,8 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
             .0
             .iter()
             .filter(|struct_| {
-                let imp_for_type =
-                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+                let imp_for_type = impl_matches(&self.filters)
+                    .impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
 
                 let imp_for_type = imp_for_type
                     .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
@@ -308,8 +308,8 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
             .0
             .iter()
             .filter(|struct_| {
-                let imp_for_type =
-                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+                let imp_for_type = impl_matches(&self.filters)
+                    .impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
 
                 let imp_for_type = imp_for_type
                     .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
@@ -384,11 +384,12 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
 mod condition_test {
     use crate::rule::structs::Structs;
     use crate::rule::{ArchRuleBuilder, CheckRule};
+    use crate::Filters;
 
     #[test]
     #[should_panic]
     fn should_check_derives_panic() {
-        Structs::that()
+        Structs::that(Filters::default())
             .reside_in_a_module("*::modules")
             .should()
             .derive("Eq")
@@ -397,7 +398,7 @@ mod condition_test {
 
     #[test]
     fn should_check_derives_ok() {
-        Structs::that()
+        Structs::that(Filters::default())
             .reside_in_a_module("assertion_result")
             .should()
             .derive("Debug")
@@ -407,7 +408,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_private_fields() {
-        Structs::that()
+        Structs::that(Filters::default())
             .are_declared_public()
             .should()
             .only_have_private_fields()
@@ -417,7 +418,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_private_fields_for_unamed_fields() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_simple_name("ModuleMatches")
             .should()
             .only_have_private_fields()
@@ -426,7 +427,7 @@ mod condition_test {
 
     #[test]
     fn should_check_public_fields_ok() {
-        Structs::that()
+        Structs::that(Filters::default())
             .reside_in_a_module("assertion_result")
             .should()
             .only_have_public_fields()
@@ -436,7 +437,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_public_fields_err() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_simple_name("ItemPath")
             .or()
             .have_simple_name("CodeSpan")
@@ -448,7 +449,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_filter_implementors() {
-        Structs::that()
+        Structs::that(Filters::default())
             .implement("Display")
             .should()
             .be_private()
@@ -458,7 +459,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_implementation() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_simple_name("AssertionResult")
             .should()
             .implement("Debug")
@@ -468,7 +469,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_derive() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_simple_name("AssertionResult")
             .should()
             .derive("PartialEq")
@@ -478,7 +479,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn struct_suffixed_with_matches_should_implement_subject_panic() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_simple_name("EnumMatches")
             .or()
             .have_simple_name("Modules")
@@ -489,17 +490,21 @@ mod condition_test {
 
     #[test]
     fn all_structs_should_derive_debug() {
-        Structs::all_should().derive("Debug").check();
+        Structs::all_should(Filters::default())
+            .derive("Debug")
+            .check();
     }
 
     #[test]
     fn all_structs_should_derive_or_implement_debug() {
-        Structs::all_should().implement_or_derive("Debug").check();
+        Structs::all_should(Filters::default())
+            .implement_or_derive("Debug")
+            .check();
     }
 
     #[test]
     fn structs_by_name_matching_should_implement_subject() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_name_matching("*Matches")
             .should()
             .implement("Subject")
@@ -508,7 +513,7 @@ mod condition_test {
 
     #[test]
     fn structs_by_simple_name_should_implement_subject() {
-        Structs::that()
+        Structs::that(Filters::default())
             .have_simple_name("EnumMatches")
             .or()
             .have_simple_name("ModuleMatches")

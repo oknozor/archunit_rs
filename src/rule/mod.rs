@@ -1,4 +1,5 @@
 use crate::assertion_result::AssertionResult;
+use crate::Filters;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -12,6 +13,7 @@ pub mod structs;
 pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug + Clone, S: Subject> {
     pub(crate) conditions: VecDeque<C>,
     pub(crate) assertions: VecDeque<A>,
+    pub(crate) filters: Filters<'static>,
     pub(crate) subject: S,
     pub(crate) assertion_results: AssertionResult,
 }
@@ -89,10 +91,11 @@ where
     A: Assertion,
     S: Subject,
 {
-    fn new() -> Self {
+    fn new(filters: Filters<'static>) -> Self {
         ArchRule {
             conditions: VecDeque::new(),
             assertions: VecDeque::new(),
+            filters,
             subject: S::default(),
             assertion_results: AssertionResult::new(),
         }
@@ -101,13 +104,13 @@ where
 
 pub trait ArchRuleBuilder<C: Condition, P: Assertion, S: Subject>: Sized {
     /// Builder function for arch rule assertions, see [`ConditionBuilder`].
-    fn that() -> ConditionBuilder<C, P, S> {
-        ConditionBuilder(ArchRule::<C, P, S>::new())
+    fn that(filters: Filters<'static>) -> ConditionBuilder<C, P, S> {
+        ConditionBuilder(ArchRule::<C, P, S>::new(filters))
     }
 
     /// Match all and returns a [`PredicateBuilder`].
-    fn all_should() -> PredicateBuilder<C, P, S> {
-        PredicateBuilder(ArchRule::<C, P, S>::new())
+    fn all_should(filters: Filters<'static>) -> PredicateBuilder<C, P, S> {
+        PredicateBuilder(ArchRule::<C, P, S>::new(filters))
     }
 }
 

@@ -1,16 +1,16 @@
 use crate::ast::impl_blocks::Impl;
 use crate::ast::module_tree;
-use crate::ModuleTree;
+use crate::{Filters, ModuleTree};
 use once_cell::sync::OnceCell;
 use std::collections::HashSet;
 
-pub(crate) fn impl_matches() -> &'static ImplMatchesTODO {
+pub(crate) fn impl_matches(filters: &Filters<'static>) -> &'static ImplMatchesTODO {
     static INSTANCE: OnceCell<ImplMatchesTODO> = OnceCell::new();
-    INSTANCE.get_or_init(|| module_tree().flatten_impls())
+    INSTANCE.get_or_init(|| module_tree().flatten_impls(filters))
 }
 
 impl ModuleTree {
-    pub(crate) fn flatten_impls(&'static self) -> ImplMatchesTODO {
+    pub(crate) fn flatten_impls(&'static self, filters: &Filters<'static>) -> ImplMatchesTODO {
         let mut impls = HashSet::new();
 
         self.impl_blocks.iter().for_each(|impl_block| {
@@ -19,8 +19,8 @@ impl ModuleTree {
 
         self.submodules
             .iter()
-            .flat_map(|sub| sub.flatten().0)
-            .for_each(|(_, module)| impls.extend(module.flatten_impls().0));
+            .flat_map(|sub| sub.flatten(filters).0)
+            .for_each(|(_, module)| impls.extend(module.flatten_impls(filters).0));
 
         ImplMatchesTODO(impls)
     }

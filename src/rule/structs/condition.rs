@@ -1,22 +1,14 @@
 use crate::ast::module_tree;
-use crate::rule::enums::EnumMatches;
 use crate::rule::structs::StructMatches;
-use crate::ModuleTree;
-use once_cell::sync::OnceCell;
+use crate::{Filters, ModuleTree};
 use std::collections::HashSet;
 
-pub(crate) fn struct_matches() -> &'static StructMatches {
-    static MODULE_TREE: OnceCell<StructMatches> = OnceCell::new();
-    MODULE_TREE.get_or_init(|| module_tree().flatten_structs())
-}
-
-pub(crate) fn enum_matches() -> &'static EnumMatches {
-    static MODULE_TREE: OnceCell<EnumMatches> = OnceCell::new();
-    MODULE_TREE.get_or_init(|| module_tree().flatten_enums())
+pub(crate) fn struct_matches(filters: &Filters<'static>) -> StructMatches {
+    module_tree().flatten_structs(filters)
 }
 
 impl ModuleTree {
-    pub(crate) fn flatten_structs(&'static self) -> StructMatches {
+    pub(crate) fn flatten_structs(&'static self, filters: &Filters<'static>) -> StructMatches {
         let mut structs = HashSet::new();
 
         self.structs.iter().for_each(|struct_| {
@@ -25,36 +17,23 @@ impl ModuleTree {
 
         self.submodules
             .iter()
-            .flat_map(|sub| sub.flatten().0)
-            .for_each(|(_, module)| structs.extend(module.flatten_structs().0));
+            .filter(filters.filter())
+            .flat_map(|sub| sub.flatten(filters).0)
+            .for_each(|(_, module)| structs.extend(module.flatten_structs(filters).0));
 
         StructMatches(structs)
-    }
-
-    pub(crate) fn flatten_enums(&'static self) -> EnumMatches {
-        let mut enums = HashSet::new();
-
-        self.enums.iter().for_each(|enum_| {
-            enums.insert(enum_);
-        });
-
-        self.submodules
-            .iter()
-            .flat_map(|sub| sub.flatten().0)
-            .for_each(|(_, module)| enums.extend(module.flatten_enums().0));
-
-        EnumMatches(enums)
     }
 }
 
 #[cfg(test)]
 mod condition_test {
     use crate::rule::structs::condition::struct_matches;
+    use crate::Filters;
     use speculoos::prelude::*;
 
     #[test]
     fn should_check_assertion() {
-        let all = struct_matches();
+        let all = struct_matches(&Filters::default());
         let matches = all.structs_that(|struct_| struct_.ident == "Ast");
         assert_that!(matches.0).has_length(1);
 

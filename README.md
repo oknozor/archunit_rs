@@ -35,7 +35,7 @@
 ```rust
 #[test]
 fn arch_rules() {
-    Structs::that()
+    Structs::that(Filters::default())
         .implement("Display")
         .should()
         .be_public()
