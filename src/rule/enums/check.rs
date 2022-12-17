@@ -1,5 +1,6 @@
 use crate::assertion_result::AssertionResult;
 use crate::ast::enums::Enum;
+use crate::ast::module_tree;
 use crate::rule::assertable::Assertable;
 use crate::rule::enums::reports::EnumRuleViolation;
 use crate::rule::enums::{
@@ -7,7 +8,6 @@ use crate::rule::enums::{
     EnumPredicateConjunctionBuilder, SimpleAssertions,
 };
 use crate::rule::impl_block::impl_matches;
-use crate::rule::structs::condition::enum_matches;
 use crate::rule::{ArchRule, CheckRule};
 use std::collections::HashSet;
 
@@ -29,7 +29,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
 {
     fn apply_conditions(&mut self) {
         let mut matches = EnumMatches::default();
-        let enums = enum_matches();
+        let enums = module_tree().flatten_enums(&self.filters);
 
         enum Conjunction {
             Or,
@@ -41,7 +41,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
 
         while let Some(condition) = self.conditions.pop_back() {
             let match_against = match conjunction {
-                Conjunction::Or => enums,
+                Conjunction::Or => &enums,
                 Conjunction::And => &matches,
             };
 
@@ -86,7 +86,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
                 ConditionToken::Implement(trait_) => {
                     let expected = format!("implement {trait_}");
                     self.assertion_results.push_expected(&expected);
-                    let imps = impl_matches()
+                    let imps = impl_matches(&self.filters)
                         .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(&trait_)));
                     let types = imps.types();
                     match_against.enums_that(|enum_| types.contains(&enum_.ident.as_str()))
@@ -248,8 +248,8 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             .0
             .iter()
             .filter(|enum_| {
-                let imp_for_type =
-                    impl_matches().impl_that(|imp| imp.self_ty.name() == enum_.ident.as_str());
+                let imp_for_type = impl_matches(&self.filters)
+                    .impl_that(|imp| imp.self_ty.name() == enum_.ident.as_str());
                 let imp_for_type = imp_for_type
                     .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
                 imp_for_type.is_empty()
@@ -285,8 +285,8 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
             .0
             .iter()
             .filter(|struct_| {
-                let imp_for_type =
-                    impl_matches().impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
+                let imp_for_type = impl_matches(&self.filters)
+                    .impl_that(|imp| imp.self_ty.name() == struct_.ident.as_str());
 
                 let imp_for_type = imp_for_type
                     .impl_that(|imp| matches!(&imp.trait_impl, Some(t) if t.contains(trait_)));
@@ -314,11 +314,12 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
 mod condition_test {
     use crate::rule::enums::Enums;
     use crate::rule::{ArchRuleBuilder, CheckRule};
+    use crate::Filters;
 
     #[test]
     #[should_panic]
     fn should_check_derives_panic() {
-        Enums::that()
+        Enums::that(Filters::default())
             .reside_in_a_module("*::modules")
             .should()
             .derive("Deserialize")
@@ -327,7 +328,7 @@ mod condition_test {
 
     #[test]
     fn should_check_derives_ok() {
-        Enums::that()
+        Enums::that(Filters::default())
             .have_simple_name("Visibility")
             .should()
             .derive("Debug")
@@ -336,7 +337,7 @@ mod condition_test {
 
     #[test]
     fn should_filter_implementors() {
-        Enums::that()
+        Enums::that(Filters::default())
             .implement("Condition")
             .should()
             .have_simple_name("ConditionToken")
@@ -346,7 +347,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_implementation() {
-        Enums::that()
+        Enums::that(Filters::default())
             .have_simple_name("AssertionToken")
             .should()
             .implement("Debug")
@@ -357,6 +358,8 @@ mod condition_test {
     fn should_derive_or_implement_debug() {
         // Note: we are currently limited to struct and enum living in modules
         // anything living inside a function is ignored
-        Enums::all_should().implement_or_derive("Debug").check();
+        Enums::all_should(Filters::default())
+            .implement_or_derive("Debug")
+            .check();
     }
 }

@@ -1,6 +1,7 @@
 use crate::ast::{module_tree, ModuleUse};
 use crate::layer_rule::{LayerAssertion, LayeredArchitecture};
 use crate::rule::modules::ModuleMatches;
+use crate::Filters;
 use miette::ErrReport;
 use miette::Result;
 
@@ -35,9 +36,7 @@ impl LayeredArchitecture {
         for rule in &rules {
             match &rule.layer_assertions {
                 LayerAssertion::MayNotBeAccessedByAnyLayer => {
-                    let _all_except_current_layer =
-                        modules.module_that(|module| module.ident != rule.layer_path);
-                    todo!()
+                    unimplemented!()
                 }
                 LayerAssertion::MayOnlyBeAccessedByLayers(layers) => {
                     // Get all layer that are not allowed
@@ -47,17 +46,20 @@ impl LayeredArchitecture {
                         .map(|rule| &rule.layer_path)
                         .collect();
 
-                    let forbidden_layers: ModuleMatches = modules.module_that(|module| {
-                        // Not resides in ast
-                        !module.path.reside_in_any(permitted_modules.as_slice())
+                    let forbidden_layers: ModuleMatches = modules.module_that(
+                        |module| {
+                            // Not resides in ast
+                            !module.path.reside_in_any(permitted_modules.as_slice())
                             // not reside in rule module
                             && !module.path.reside_in(&rule.layer_path)
-                    });
+                        },
+                        &Filters::default(),
+                    );
 
                     // Get each module tree for forbidden layers
                     for (_module_path, tree) in forbidden_layers.0 {
                         // Flatten dependencies for each forbidden layers
-                        for (path, (_, deps)) in tree.flatten_deps().0 {
+                        for (path, (_, deps)) in tree.flatten_deps(&Filters::default()).0 {
                             // Find forbidden access
                             let forbidden_dependencies: Vec<&ModuleUse> = deps
                                 .iter()
@@ -84,17 +86,20 @@ impl LayeredArchitecture {
                         .get(layer)
                         .expect("layer should be defined");
 
-                    let forbidden_layers: ModuleMatches = modules.module_that(|module| {
-                        // Not resides in ast
-                        !module.path.reside_in(layer_module_path)
+                    let forbidden_layers: ModuleMatches = modules.module_that(
+                        |module| {
+                            // Not resides in ast
+                            !module.path.reside_in(layer_module_path)
                             // not reside in rule module
                             && !module.path.reside_in(&rule.layer_path)
-                    });
+                        },
+                        &Filters::default(),
+                    );
 
                     // Get each module tree for forbidden layers
                     for (_, tree) in forbidden_layers.0 {
                         // Flatten dependencies for each forbidden layers
-                        for (path, (real_path, deps)) in tree.flatten_deps().0 {
+                        for (path, (real_path, deps)) in tree.flatten_deps(&Filters::default()).0 {
                             for usage in deps {
                                 let rule_module_path = rule.layer_path.as_str();
                                 if usage.starts_with(rule_module_path) {

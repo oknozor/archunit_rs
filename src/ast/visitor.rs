@@ -2,23 +2,12 @@ use crate::ast::enums::Enum;
 use crate::ast::impl_blocks::Impl;
 use crate::ast::parse::ModuleAst;
 use crate::ast::structs::Struct;
-use crate::ast::{CodeSpan, ItemPath, ModuleUse};
-use once_cell::sync::Lazy;
-use std::collections::HashSet;
+use crate::ast::{get_item_mod_cfg, CodeSpan, ItemPath, ModuleUse};
 use std::env;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use syn::__private::Span;
 use syn::visit::Visit;
-use syn::{visit, File, Ident, Item, ItemMod, Meta, VisPublic};
-
-static CFG_FILTERS: Lazy<Arc<Mutex<HashSet<&'static str>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(HashSet::new())));
-
-pub(crate) fn push_cfg_filter(cfg: &'static str) {
-    let mut filters = CFG_FILTERS.lock().expect("lock free");
-    filters.insert(cfg);
-}
+use syn::{visit, File, Ident, Item, ItemMod, VisPublic};
 
 impl ModuleAst {
     pub fn visit_modules<'ast>(
@@ -103,6 +92,13 @@ impl ModuleOrFile<'_> {
         match self {
             ModuleOrFile::InnerModule { real_path, .. } => real_path.to_path_buf(),
             ModuleOrFile::SynFile { real_path, .. } => real_path.to_path_buf(),
+        }
+    }
+
+    pub fn cfg_attr(&self) -> Vec<String> {
+        match self {
+            ModuleOrFile::InnerModule { module, .. } => get_item_mod_cfg(module),
+            ModuleOrFile::SynFile { module, .. } => module.cfg_attr(),
         }
     }
 
@@ -202,6 +198,13 @@ impl ModuleOrFile<'_> {
 }
 
 impl ModuleOrCrateRoot<'_> {
+    fn cfg_attr(&self) -> Vec<String> {
+        match self {
+            ModuleOrCrateRoot::CrateRoot => vec![],
+            ModuleOrCrateRoot::Module { module, .. } => get_item_mod_cfg(module),
+        }
+    }
+
     fn span(&self) -> Option<CodeSpan> {
         match self {
             ModuleOrCrateRoot::CrateRoot => None,
@@ -244,30 +247,6 @@ impl<'ast> Visit<'ast> for FileVisitor<'ast> {
                 } else {
                     None
                 }
-            })
-            // Filter out modules with cfg attr in CFG_FILTERS
-            .filter(|module| {
-                !module.attrs.iter().any(|attr| {
-                    let has_cfg = attr
-                        .path
-                        .segments
-                        .iter()
-                        .any(|segment| segment.ident == "cfg");
-                    if has_cfg {
-                        let meta = attr.parse_args::<Meta>();
-                        match meta {
-                            Ok(Meta::Path(path)) => path.segments.iter().any(|segment| {
-                                CFG_FILTERS
-                                    .lock()
-                                    .expect("lock free")
-                                    .contains(&segment.ident.to_string().as_str())
-                            }),
-                            _ => false,
-                        }
-                    } else {
-                        false
-                    }
-                })
             })
             .for_each(|module| {
                 if module.content.is_some() {

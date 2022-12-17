@@ -9,7 +9,7 @@ use once_cell::sync::OnceCell;
 use structs::Struct;
 use syn::__private::Span;
 use syn::spanned::Spanned;
-use syn::{ItemUse, UseTree};
+use syn::{ItemMod, ItemUse, Meta, UseTree};
 
 use crate::ast::parse::ModuleAst;
 use crate::ast::visitor::{ModuleOrCrateRoot, SynModuleTree};
@@ -29,6 +29,7 @@ pub fn module_tree() -> &'static ModuleTree {
 #[derive(Debug)]
 pub struct ModuleTree {
     pub span: Option<CodeSpan>,
+    pub cfg_attr: Vec<String>,
     pub dependencies: Vec<ModuleUse>,
     pub real_path: PathBuf,
     pub path: ItemPath,
@@ -107,6 +108,27 @@ impl fmt::Display for ItemPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.inner)
     }
+}
+
+fn get_item_mod_cfg(item: &ItemMod) -> Vec<String> {
+    let mut cfg_attr = vec![];
+
+    for attr in &item.attrs {
+        let has_cfg = attr
+            .path
+            .segments
+            .iter()
+            .any(|segment| segment.ident == "cfg");
+
+        if has_cfg {
+            if let Ok(Meta::Path(path)) = attr.parse_args::<Meta>() {
+                for attr_value in path.segments {
+                    cfg_attr.push(attr_value.ident.to_string());
+                }
+            }
+        }
+    }
+    cfg_attr
 }
 
 #[derive(Debug)]
@@ -224,6 +246,7 @@ impl SynModuleTree<'_> {
         let enums = self.module.enums(&path);
         let impl_blocks = self.module.impls(&path);
         let real_path = self.module.real_path();
+        let cfg_attr = self.module.cfg_attr();
         let submodules = self
             .submodules
             .iter()
@@ -233,6 +256,7 @@ impl SynModuleTree<'_> {
 
         ModuleTree {
             span,
+            cfg_attr,
             dependencies,
             real_path,
             path,
@@ -254,7 +278,7 @@ mod test {
     #[test]
     fn should_reside_in_works() {
         let path = ItemPath {
-            inner: "foo::bar::baz".to_string(),
+            inner: "foo::bar::baz".to_owned(),
         };
 
         assert_that!(path.reside_in("foo")).is_true();
@@ -266,21 +290,21 @@ mod test {
     #[test]
     fn should_reside_in_any() {
         let path = ItemPath {
-            inner: "foo::bar::baz".to_string(),
+            inner: "foo::bar::baz".to_owned(),
         };
 
         assert_that!(path.reside_in_any(&[
-            &"foo".to_string(),
-            &"biz".to_string(),
-            &"bar".to_string()
+            &"foo".to_owned(),
+            &"biz".to_owned(),
+            &"bar".to_owned()
         ]))
         .is_true();
         assert_that!(path.reside_in_any(&[
-            &"foo::bar".to_string(),
-            &"biz".to_string(),
-            &"bar".to_string()
+            &"foo::bar".to_owned(),
+            &"biz".to_owned(),
+            &"bar".to_owned()
         ]))
         .is_true();
-        assert_that!(path.reside_in_any(&[&"biz".to_string(), &"bar".to_string()])).is_false();
+        assert_that!(path.reside_in_any(&[&"biz".to_owned(), &"bar".to_owned()])).is_false();
     }
 }
