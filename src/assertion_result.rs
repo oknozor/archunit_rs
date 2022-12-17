@@ -59,7 +59,7 @@ pub(crate) fn get_field_span(field: &Field, sample: &str) -> SourceSpan {
         .as_ref()
         .and_then(|name| sample.find(name).map(|start| (start, name.len())))
         .map(Into::into)
-        .unwrap_or(SourceSpan::from(field.span))
+        .unwrap_or_else(|| SourceSpan::from(field.span))
 }
 
 pub(crate) fn get_relative_location(location: &Path) -> String {

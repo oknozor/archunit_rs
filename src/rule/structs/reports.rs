@@ -247,7 +247,7 @@ impl StructRuleViolation {
             if field.visibility != Visibility::Public {
                 violations.push(StructRuleViolation::OnlyHavePublicFields {
                     struct_name: struct_name.clone(),
-                    field_name: field.name.clone().unwrap_or(idx.to_string()),
+                    field_name: field.name.clone().unwrap_or_else(|| idx.to_string()),
                     location: location.clone(),
                     span,
                     src,
@@ -276,7 +276,7 @@ impl StructRuleViolation {
             if field.visibility == Visibility::Public {
                 violations.push(StructRuleViolation::OnlyHavePrivateFields {
                     struct_name: struct_name.clone(),
-                    field_name: field.name.clone().unwrap_or(idx.to_string()),
+                    field_name: field.name.clone().unwrap_or_else(|| idx.to_string()),
                     location: location.clone(),
                     span,
                     src,
