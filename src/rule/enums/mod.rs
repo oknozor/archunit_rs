@@ -3,10 +3,12 @@ mod condition;
 mod reports;
 
 use crate::ast::enums::Enum;
+use crate::ast::module_tree;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
+use crate::Filters;
 use std::collections::HashSet;
 
 /// A unit enum giving access to enum assertions.
@@ -70,7 +72,11 @@ impl Condition for ConditionToken {}
 
 impl Assertion for AssertionToken {}
 
-impl Subject for EnumMatches {}
+impl Subject for EnumMatches {
+    fn init(filters: &Filters<'static>) -> Self {
+        module_tree().flatten_enums(filters)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ConditionToken {
