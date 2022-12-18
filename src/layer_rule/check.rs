@@ -1,7 +1,7 @@
 use crate::ast::{module_tree, ModuleUse};
 use crate::layer_rule::{LayerAssertion, LayeredArchitecture};
 use crate::rule::modules::ModuleMatches;
-use crate::Filters;
+use crate::ExludeModules;
 use miette::ErrReport;
 use miette::Result;
 
@@ -53,13 +53,13 @@ impl LayeredArchitecture {
                             // not reside in rule module
                             && !module.path.reside_in(&rule.layer_path)
                         },
-                        &Filters::default(),
+                        &ExludeModules::default(),
                     );
 
                     // Get each module tree for forbidden layers
                     for (_module_path, tree) in forbidden_layers.0 {
                         // Flatten dependencies for each forbidden layers
-                        for (path, (_, deps)) in tree.flatten_deps(&Filters::default()).0 {
+                        for (path, (_, deps)) in tree.flatten_deps(&ExludeModules::default()).0 {
                             // Find forbidden access
                             let forbidden_dependencies: Vec<&ModuleUse> = deps
                                 .iter()
@@ -93,13 +93,15 @@ impl LayeredArchitecture {
                             // not reside in rule module
                             && !module.path.reside_in(&rule.layer_path)
                         },
-                        &Filters::default(),
+                        &ExludeModules::default(),
                     );
 
                     // Get each module tree for forbidden layers
                     for (_, tree) in forbidden_layers.0 {
                         // Flatten dependencies for each forbidden layers
-                        for (path, (real_path, deps)) in tree.flatten_deps(&Filters::default()).0 {
+                        for (path, (real_path, deps)) in
+                            tree.flatten_deps(&ExludeModules::default()).0
+                        {
                             for usage in deps {
                                 let rule_module_path = rule.layer_path.as_str();
                                 if usage.starts_with(rule_module_path) {

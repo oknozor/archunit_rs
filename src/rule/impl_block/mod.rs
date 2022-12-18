@@ -1,16 +1,19 @@
 use crate::ast::impl_blocks::Impl;
 use crate::ast::module_tree;
-use crate::{Filters, ModuleTree};
+use crate::{ExludeModules, ModuleTree};
 use once_cell::sync::OnceCell;
 use std::collections::HashSet;
 
-pub(crate) fn impl_matches(filters: &Filters<'static>) -> &'static ImplMatchesTODO {
+pub(crate) fn impl_matches(filters: &ExludeModules<'static>) -> &'static ImplMatchesTODO {
     static INSTANCE: OnceCell<ImplMatchesTODO> = OnceCell::new();
     INSTANCE.get_or_init(|| module_tree().flatten_impls(filters))
 }
 
 impl ModuleTree {
-    pub(crate) fn flatten_impls(&'static self, filters: &Filters<'static>) -> ImplMatchesTODO {
+    pub(crate) fn flatten_impls(
+        &'static self,
+        filters: &ExludeModules<'static>,
+    ) -> ImplMatchesTODO {
         let mut impls = HashSet::new();
 
         self.impl_blocks.iter().for_each(|impl_block| {

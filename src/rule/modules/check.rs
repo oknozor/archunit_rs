@@ -369,7 +369,7 @@ mod condition_test {
     use crate::ast::{CodeSpan, ModuleUse};
     use crate::rule::modules::Modules;
     use crate::rule::{ArchRuleBuilder, CheckRule};
-    use crate::Filters;
+    use crate::ExludeModules;
     use speculoos::prelude::*;
 
     #[test]
@@ -399,9 +399,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn module_should_have_simple_name_panics() {
-        let excluding_test = Filters::default().exclude_test();
-
-        Modules::that(excluding_test)
+        Modules::that(ExludeModules::cfg_test())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .should()
             .have_simple_name("report")
@@ -410,9 +408,7 @@ mod condition_test {
 
     #[test]
     fn module_should_have_simple_name_ok() {
-        let excluding_test = Filters::default().exclude_test();
-
-        Modules::that(excluding_test)
+        Modules::that(ExludeModules::cfg_test())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .should()
             .have_simple_name("report")
@@ -426,7 +422,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn module_should_be_public_panics() {
-        Modules::that(Filters::default().exclude_test())
+        Modules::that(ExludeModules::cfg_test())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")
@@ -437,9 +433,7 @@ mod condition_test {
 
     #[test]
     fn module_should_be_private_ok_excluding_cfg_test() {
-        let excluding_test = Filters::default().exclude_test();
-
-        Modules::that(excluding_test)
+        Modules::that(ExludeModules::cfg_test())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")
@@ -451,7 +445,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_panic_when_dependencies_does_not_match_pattern() {
-        Modules::that(Filters::default())
+        Modules::that(ExludeModules::default())
             .have_simple_name("pattern")
             .should()
             .only_have_dependency_module()
@@ -462,9 +456,7 @@ mod condition_test {
 
     #[test]
     fn should_not_panic_when_dependencies_matches_pattern() {
-        let excluding_test = Filters::default().exclude_test();
-
-        Modules::that(excluding_test)
+        Modules::that(ExludeModules::cfg_test())
             .have_simple_name("pattern")
             .should()
             .only_have_dependency_module()

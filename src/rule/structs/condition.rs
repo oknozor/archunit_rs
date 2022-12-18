@@ -1,9 +1,12 @@
 use crate::rule::structs::StructMatches;
-use crate::{Filters, ModuleTree};
+use crate::{ExludeModules, ModuleTree};
 use std::collections::HashSet;
 
 impl ModuleTree {
-    pub(crate) fn flatten_structs(&'static self, filters: &Filters<'static>) -> StructMatches {
+    pub(crate) fn flatten_structs(
+        &'static self,
+        filters: &ExludeModules<'static>,
+    ) -> StructMatches {
         let mut structs = HashSet::new();
 
         self.structs.iter().for_each(|struct_| {
@@ -23,12 +26,12 @@ impl ModuleTree {
 #[cfg(test)]
 mod condition_test {
     use crate::ast::module_tree;
-    use crate::Filters;
+    use crate::ExludeModules;
     use speculoos::prelude::*;
 
     #[test]
     fn should_check_assertion() {
-        let all = module_tree().flatten_structs(&Filters::default());
+        let all = module_tree().flatten_structs(&ExludeModules::default());
         let matches = all.structs_that(|struct_| struct_.ident == "Ast");
         assert_that!(matches.0).has_length(1);
 

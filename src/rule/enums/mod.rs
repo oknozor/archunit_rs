@@ -8,18 +8,18 @@ use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
-use crate::Filters;
+use crate::ExludeModules;
 use std::collections::HashSet;
 
 /// A unit enum giving access to enum assertions.
 ///
 /// **Example:**
 /// ```rust
-/// use archunit_rs::Filters;
+/// use archunit_rs::ExludeModules;
 /// use archunit_rs::rule::ArchRuleBuilder;
 /// use archunit_rs::rule::enums::Enums;
 ///
-/// Enums::that(Filters::default())
+/// Enums::that(ExludeModules::default())
 ///     .have_simple_name("ConditionToken")
 ///     .should()
 ///     .be_public();
@@ -73,7 +73,7 @@ impl Condition for ConditionToken {}
 impl Assertion for AssertionToken {}
 
 impl Subject for EnumMatches {
-    fn init(filters: &Filters<'static>) -> Self {
+    fn init(filters: &ExludeModules<'static>) -> Self {
         module_tree().flatten_enums(filters)
     }
 }
@@ -268,12 +268,12 @@ mod test {
         AssertionConjunction, AssertionToken, ConditionToken, Enums, SimpleAssertions,
     };
     use crate::rule::ArchRuleBuilder;
-    use crate::Filters;
+    use crate::ExludeModules;
     use speculoos::prelude::*;
 
     #[test]
     fn should_build_arch_rule_for_struct() {
-        let rule = Enums::that(Filters::default())
+        let rule = Enums::that(ExludeModules::default())
             .derives("Debug")
             .and()
             .implement("Display")

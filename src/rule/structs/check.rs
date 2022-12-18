@@ -389,12 +389,12 @@ impl ArchRule<ConditionToken, AssertionToken, StructMatches> {
 mod condition_test {
     use crate::rule::structs::Structs;
     use crate::rule::{ArchRuleBuilder, CheckRule};
-    use crate::Filters;
+    use crate::ExludeModules;
 
     #[test]
     #[should_panic]
     fn should_check_derives_panic() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .reside_in_a_module("*::modules")
             .should()
             .derive("Eq")
@@ -403,7 +403,7 @@ mod condition_test {
 
     #[test]
     fn should_check_derives_ok() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .reside_in_a_module("assertion_result")
             .should()
             .derive("Debug")
@@ -413,7 +413,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_private_fields() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .are_declared_public()
             .should()
             .only_have_private_fields()
@@ -423,7 +423,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_private_fields_for_unamed_fields() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_simple_name("ModuleMatches")
             .should()
             .only_have_private_fields()
@@ -432,7 +432,7 @@ mod condition_test {
 
     #[test]
     fn should_check_public_fields_ok() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .reside_in_a_module("assertion_result")
             .should()
             .only_have_public_fields()
@@ -442,7 +442,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_public_fields_err() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_simple_name("ItemPath")
             .or()
             .have_simple_name("CodeSpan")
@@ -454,7 +454,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_filter_implementors() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .implement("Display")
             .should()
             .be_private()
@@ -464,7 +464,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_implementation() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_simple_name("AssertionResult")
             .should()
             .implement("Debug")
@@ -474,7 +474,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_derive() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_simple_name("AssertionResult")
             .should()
             .derive("PartialEq")
@@ -484,7 +484,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn struct_suffixed_with_matches_should_implement_subject_panic() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_simple_name("EnumMatches")
             .or()
             .have_simple_name("Modules")
@@ -495,14 +495,14 @@ mod condition_test {
 
     #[test]
     fn all_structs_should_derive_debug() {
-        Structs::all_should(Filters::default())
+        Structs::all_should(ExludeModules::default())
             .derive("Debug")
             .check();
     }
 
     #[test]
     fn all_structs_should_derive_or_implement_debug() {
-        Structs::all_should(Filters::default())
+        Structs::all_should(ExludeModules::default())
             .implement_or_derive("Debug")
             .check();
     }
@@ -510,14 +510,14 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_panic_all_struct_derives() {
-        Structs::all_should(Filters::default())
+        Structs::all_should(ExludeModules::default())
             .implement_or_derive("Ord")
             .check();
     }
 
     #[test]
     fn structs_by_name_matching_should_implement_subject() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_name_matching("*Matches")
             .should()
             .implement("Subject")
@@ -526,7 +526,7 @@ mod condition_test {
 
     #[test]
     fn structs_by_simple_name_should_implement_subject() {
-        Structs::that(Filters::default())
+        Structs::that(ExludeModules::default())
             .have_simple_name("EnumMatches")
             .or()
             .have_simple_name("ModuleMatches")
