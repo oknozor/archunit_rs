@@ -4,7 +4,7 @@ use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
-use crate::Filters;
+use crate::ExludeModules;
 use std::collections::HashSet;
 
 pub mod check;
@@ -15,11 +15,11 @@ pub mod reports;
 ///
 /// **Example:**
 /// ```rust
-/// use archunit_rs::Filters;
+/// use archunit_rs::ExludeModules;
 /// use archunit_rs::rule::ArchRuleBuilder;
 /// use archunit_rs::rule::structs::Structs;
 ///
-/// Structs::that(Filters::default())
+/// Structs::that(ExludeModules::default())
 /// .have_simple_name("PredicateBuilder")
 /// .should()
 /// .only_have_private_fields()
@@ -75,7 +75,7 @@ impl Condition for ConditionToken {}
 impl Assertion for AssertionToken {}
 
 impl Subject for StructMatches {
-    fn init(filters: &Filters<'static>) -> Self {
+    fn init(filters: &ExludeModules<'static>) -> Self {
         module_tree().flatten_structs(filters)
     }
 }
@@ -302,12 +302,12 @@ mod test {
     use crate::rule::structs::ConditionToken;
     use crate::rule::structs::{AssertionConjunction, AssertionToken, SimpleAssertions, Structs};
     use crate::rule::ArchRuleBuilder;
-    use crate::Filters;
+    use crate::ExludeModules;
     use speculoos::prelude::*;
 
     #[test]
     fn should_build_arch_rule_for_struct() {
-        let rule = Structs::that(Filters::default())
+        let rule = Structs::that(ExludeModules::default())
             .derives("Debug")
             .and()
             .implement("Display")

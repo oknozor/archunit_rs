@@ -1,5 +1,5 @@
 use crate::assertion_result::AssertionResult;
-use crate::Filters;
+use crate::ExludeModules;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -13,7 +13,7 @@ pub mod structs;
 pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug + Clone, S: Subject> {
     pub(crate) conditions: VecDeque<C>,
     pub(crate) assertions: VecDeque<A>,
-    pub(crate) filters: Filters<'static>,
+    pub(crate) filters: ExludeModules<'static>,
     pub(crate) subject: S,
     pub(crate) assertion_results: AssertionResult,
 }
@@ -24,7 +24,7 @@ pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug + Clone, S: Subje
 /// and provide your custom implementation:
 /// ```
 pub trait Subject: Default {
-    fn init(filters: &Filters<'static>) -> Self;
+    fn init(filters: &ExludeModules<'static>) -> Self;
 }
 
 /// [`Condition`] are used to filter matching [`Subjects`].
@@ -89,7 +89,7 @@ where
     A: Assertion,
     S: Subject,
 {
-    fn new(filters: Filters<'static>) -> Self {
+    fn new(filters: ExludeModules<'static>) -> Self {
         ArchRule {
             conditions: VecDeque::new(),
             assertions: VecDeque::new(),
@@ -106,12 +106,12 @@ where
 
 pub trait ArchRuleBuilder<C: Condition, P: Assertion, S: Subject>: Sized {
     /// Builder function for arch rule assertions, see [`ConditionBuilder`].
-    fn that(filters: Filters<'static>) -> ConditionBuilder<C, P, S> {
+    fn that(filters: ExludeModules<'static>) -> ConditionBuilder<C, P, S> {
         ConditionBuilder(ArchRule::<C, P, S>::new(filters))
     }
 
     /// Match all and returns a [`PredicateBuilder`].
-    fn all_should(filters: Filters<'static>) -> PredicateBuilder<C, P, S> {
+    fn all_should(filters: ExludeModules<'static>) -> PredicateBuilder<C, P, S> {
         let mut rule = ArchRule::<C, P, S>::new(filters);
         rule.subject = rule.init_subject();
         PredicateBuilder(rule)

@@ -1,13 +1,13 @@
 use crate::ast::{ItemPath, ModuleTree};
 use crate::rule::modules::{ModuleDependencies, ModuleMatches};
-use crate::Filters;
+use crate::ExludeModules;
 use std::collections::HashMap;
 
 impl ModuleTree {
     pub(crate) fn module_that<P>(
         &'static self,
         mut predicate: P,
-        filters: &Filters<'static>,
+        filters: &ExludeModules<'static>,
     ) -> ModuleMatches
     where
         P: FnMut(&&ModuleTree) -> bool,
@@ -22,7 +22,7 @@ impl ModuleTree {
         ModuleMatches(matches)
     }
 
-    pub(crate) fn flatten(&'static self, filters: &Filters<'static>) -> ModuleMatches {
+    pub(crate) fn flatten(&'static self, filters: &ExludeModules<'static>) -> ModuleMatches {
         let mut modules = HashMap::new();
         modules.insert(&self.path, self);
 
@@ -37,7 +37,10 @@ impl ModuleTree {
         ModuleMatches(modules)
     }
 
-    pub(crate) fn flatten_deps(&'static self, filters: &Filters<'static>) -> ModuleDependencies {
+    pub(crate) fn flatten_deps(
+        &'static self,
+        filters: &ExludeModules<'static>,
+    ) -> ModuleDependencies {
         let mut modules = HashMap::new();
         modules.insert(&self.path, (&self.real_path, &self.dependencies));
 
@@ -58,7 +61,7 @@ impl ModuleTree {
 mod condition_test {
     use crate::ast::module_tree;
     use crate::rule::assertable::Assertable;
-    use crate::Filters;
+    use crate::ExludeModules;
     use speculoos::prelude::*;
 
     use crate::rule::modules::Modules;
@@ -68,7 +71,7 @@ mod condition_test {
     fn filter_out_a_module_and_its_children() {
         let matches = module_tree().module_that(
             |module| !module.path.reside_in("archunit_rs::rule"),
-            &Filters::default(),
+            &ExludeModules::default(),
         );
         let matches: Vec<String> = matches.0.keys().map(|path| path.to_string()).collect();
 
@@ -81,7 +84,7 @@ mod condition_test {
     fn keep_only_a_module_and_its_children() {
         let matches = module_tree().module_that(
             |module| module.path.reside_in("archunit_rs::rule"),
-            &Filters::default(),
+            &ExludeModules::default(),
         );
         let matches: Vec<String> = matches.0.keys().map(|path| path.to_string()).collect();
 
@@ -92,7 +95,7 @@ mod condition_test {
 
     #[test]
     fn should_filter_modules_with_and_conjunctions() {
-        let mut arch_rule = Modules::that(Filters::default())
+        let mut arch_rule = Modules::that(ExludeModules::default())
             .reside_in_a_module("*::modules")
             .and()
             .have_simple_name("condition");
@@ -117,7 +120,7 @@ mod condition_test {
 
     #[test]
     fn should_filter_modules_with_or_conjunctions() {
-        let mut arch_rule = Modules::that(Filters::default())
+        let mut arch_rule = Modules::that(ExludeModules::default())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")

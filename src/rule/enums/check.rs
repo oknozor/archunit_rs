@@ -318,7 +318,7 @@ impl ArchRule<ConditionToken, AssertionToken, EnumMatches> {
 mod condition_test {
     use crate::rule::enums::Enums;
     use crate::rule::{ArchRuleBuilder, CheckRule};
-    use crate::Filters;
+    use crate::ExludeModules;
 
     #[test]
     #[should_panic(
@@ -337,7 +337,7 @@ mod condition_test {
 "#
     )]
     fn should_panic_when_enum_does_not_derive() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .reside_in_a_module("*::report")
             .should()
             .derive("Deserialize")
@@ -346,7 +346,7 @@ mod condition_test {
 
     #[test]
     fn should_not_panic_when_enum_does_derive() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .have_simple_name("Visibility")
             .should()
             .derive("Debug")
@@ -355,7 +355,7 @@ mod condition_test {
 
     #[test]
     fn should_not_panic_when_implementors_have_simple_name() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .implement("Condition")
             .should()
             .have_simple_name("ConditionToken")
@@ -365,7 +365,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_panic_when_implementors_does_not_have_simple_name() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .implement("Condition")
             .should()
             .have_simple_name("AssertionToken")
@@ -375,7 +375,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_implementation() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .have_simple_name("AssertionToken")
             .should()
             .implement("Debug")
@@ -385,7 +385,7 @@ mod condition_test {
     #[test]
     #[should_panic]
     fn should_check_with_or_condition_operator() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .have_simple_name("ConditionToken")
             .or()
             .have_simple_name("AssertionResult")
@@ -396,7 +396,7 @@ mod condition_test {
 
     #[test]
     fn should_check_with_or_assertion_operator() {
-        Enums::that(Filters::default())
+        Enums::that(ExludeModules::default())
             .have_simple_name("AssertionToken")
             .should()
             .derive("Debug")
@@ -409,7 +409,7 @@ mod condition_test {
     fn should_derive_or_implement_debug_ok() {
         // Note: we are currently limited to struct and enum living in modules
         // anything living inside a function is ignored
-        Enums::all_should(Filters::default())
+        Enums::all_should(ExludeModules::default())
             .implement_or_derive("Debug")
             .check();
     }
@@ -419,7 +419,7 @@ mod condition_test {
     fn should_panic_derive_or_implement_ord() {
         // Note: we are currently limited to struct and enum living in modules
         // anything living inside a function is ignored
-        Enums::all_should(Filters::default())
+        Enums::all_should(ExludeModules::default())
             .implement_or_derive("Ord")
             .check();
     }
