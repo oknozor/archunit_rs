@@ -1,7 +1,7 @@
 use miette::SourceSpan;
 use std::fmt;
 use std::fmt::Formatter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::ast::enums::Enum;
 use impl_blocks::Impl;
@@ -9,7 +9,7 @@ use once_cell::sync::OnceCell;
 use structs::Struct;
 use syn::__private::Span;
 use syn::spanned::Spanned;
-use syn::{ItemMod, ItemUse, Meta, UseTree};
+use syn::{Item, ItemMod, ItemUse, Meta, UseTree};
 
 use crate::ast::parse::ModuleAst;
 use crate::ast::visitor::{ModuleOrCrateRoot, SynModuleTree};
@@ -38,6 +38,7 @@ pub struct ModuleTree {
     pub structs: Vec<Struct>,
     pub enums: Vec<Enum>,
     pub impl_blocks: Vec<Impl>,
+    pub declaration: Option<ModuleDeclaration>,
     pub submodules: Vec<ModuleTree>,
 }
 
@@ -110,6 +111,31 @@ impl fmt::Display for ItemPath {
     }
 }
 
+// TODO: make only one pass on ItemMod
+fn get_item_module_declaration(item: &ItemMod, real_path: &Path) -> Vec<ModuleDeclaration> {
+    let mut declarations = vec![];
+    if let Some((_, items)) = &item.content {
+        for item in items {
+            if let Item::Mod(mod_declaration) = item {
+                let vis_span = mod_declaration.vis.span();
+                let semi_span = mod_declaration.semi.span();
+                let span = CodeSpan {
+                    start: LineColumn::from((vis_span.start().line, vis_span.start().column)),
+                    end: LineColumn::from((semi_span.end().line, semi_span.end().column)),
+                };
+                declarations.push(ModuleDeclaration {
+                    vis: Visibility::from_syn(&mod_declaration.vis),
+                    ident: mod_declaration.ident.to_string(),
+                    real_path: real_path.to_path_buf(),
+                    span,
+                });
+            }
+        }
+    }
+
+    declarations
+}
+
 fn get_item_mod_cfg(item: &ItemMod) -> Vec<String> {
     let mut cfg_attr = vec![];
 
@@ -147,6 +173,12 @@ pub struct CodeSpan {
 pub struct LineColumn {
     pub line: usize,
     pub column: usize,
+}
+
+impl From<(usize, usize)> for LineColumn {
+    fn from((line, column): (usize, usize)) -> Self {
+        Self { line, column }
+    }
 }
 
 impl From<CodeSpan> for SourceSpan {
@@ -203,7 +235,7 @@ impl ModuleTree {
     pub fn load() -> Self {
         let mut ast = ModuleAst::load_crate_ast();
         let syn_tree = ast.visit_modules(ModuleOrCrateRoot::CrateRoot);
-        syn_tree.to_tree(&ItemPath::empty())
+        syn_tree.to_tree(&ItemPath::empty(), None)
     }
 
     pub(crate) fn is_public(&self) -> bool {
@@ -224,20 +256,44 @@ pub enum Visibility {
 }
 
 impl Visibility {
+    pub fn is_public(&self) -> bool {
+        self == &Visibility::Public
+    }
+
+    pub fn is_restricted(&self) -> bool {
+        self == &Visibility::Restricted
+    }
+
     fn from_syn(vis: &syn::Visibility) -> Self {
         match vis {
             syn::Visibility::Public(_) => Visibility::Public,
             syn::Visibility::Crate(_) => Visibility::Crate,
             syn::Visibility::Restricted(_) => Visibility::Restricted,
-            //TODO :  This is not correct : see : https://doc.rust-lang.org/reference/visibility-and-privacy.html
-            // For now lets make this restricted, we'll fix this later
-            syn::Visibility::Inherited => Visibility::Restricted,
+            syn::Visibility::Inherited => Visibility::Inherited,
         }
     }
 }
 
+#[derive(Debug)]
+pub struct ModuleDeclaration {
+    pub vis: Visibility,
+    pub ident: String,
+    pub real_path: PathBuf,
+    pub span: CodeSpan,
+}
+
+impl ModuleDeclaration {
+    pub fn is_public(&self) -> bool {
+        self.vis == Visibility::Public
+    }
+}
+
 impl SynModuleTree<'_> {
-    pub(crate) fn to_tree(&self, path: &ItemPath) -> ModuleTree {
+    pub(crate) fn to_tree(
+        &self,
+        path: &ItemPath,
+        declaration: Option<ModuleDeclaration>,
+    ) -> ModuleTree {
         let visibility = Visibility::from_syn(&self.module.vis());
         let dependencies = self.module.deps();
         let ident = self.module.ident().to_string();
@@ -247,10 +303,20 @@ impl SynModuleTree<'_> {
         let impl_blocks = self.module.impls(&path);
         let real_path = self.module.real_path();
         let cfg_attr = self.module.cfg_attr();
+        let mut module_declarations = self.module.module_declarations();
+
         let submodules = self
             .submodules
             .iter()
-            .map(|syn_module| syn_module.to_tree(&path))
+            .map(|syn_module| {
+                let (idx, _) = module_declarations
+                    .iter()
+                    .enumerate()
+                    .find(|(_idx, declaration)| syn_module.module.ident() == declaration.ident)
+                    .expect("module should be declared");
+                let declaration = module_declarations.remove(idx);
+                syn_module.to_tree(&path, Some(declaration))
+            })
             .collect();
         let span = self.module.span();
 
@@ -265,6 +331,7 @@ impl SynModuleTree<'_> {
             structs,
             enums,
             impl_blocks,
+            declaration,
             submodules,
         }
     }

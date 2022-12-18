@@ -139,6 +139,6 @@ mod test {
     fn test() {
         let mut ast = ModuleAst::load_crate_ast();
         let tree = ast.visit_modules(ModuleOrCrateRoot::CrateRoot);
-        let _tree = tree.to_tree(&ItemPath::empty());
+        let _tree = tree.to_tree(&ItemPath::empty(), None);
     }
 }

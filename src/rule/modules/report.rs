@@ -29,13 +29,13 @@ pub(crate) enum ModuleRuleViolation {
         #[source_code]
         src: NamedSource,
     },
-    #[error("Module '{module_name}' name should match {pattern}")]
+    #[error("Module '{module_name}' name should match pattern '{pattern}'")]
     #[diagnostic(help("Try renaming '{module_name}' accordingly"))]
     HaveNameMatching {
         module_name: String,
         pattern: String,
         location: String,
-        #[label("should be public")]
+        #[label("does not match")]
         span: SourceSpan,
         #[source_code]
         src: NamedSource,
@@ -62,6 +62,8 @@ impl ModuleRuleViolation {
         vis: Visibility,
     ) -> Self {
         let sample = fs::read_to_string(location).expect("path exists");
+        println!("{:?}", module_name);
+        println!("{:?}", span);
         let sample = get_code_sample_region(&sample, &span);
         let start_hint = sample
             .find(&module_name)

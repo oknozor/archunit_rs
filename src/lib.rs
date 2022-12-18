@@ -7,7 +7,7 @@
 )]
 
 pub mod assertion_result;
-pub mod ast;
+mod ast;
 pub mod layer_rule;
 pub mod rule;
 
