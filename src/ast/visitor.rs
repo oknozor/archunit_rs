@@ -2,10 +2,14 @@ use crate::ast::enums::Enum;
 use crate::ast::impl_blocks::Impl;
 use crate::ast::parse::ModuleAst;
 use crate::ast::structs::Struct;
-use crate::ast::{get_item_mod_cfg, CodeSpan, ItemPath, ModuleUse};
+use crate::ast::{
+    get_item_mod_cfg, get_item_module_declaration, CodeSpan, ItemPath, LineColumn,
+    ModuleDeclaration, ModuleUse, Visibility,
+};
 use std::env;
 use std::path::{Path, PathBuf};
 use syn::__private::Span;
+use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{visit, File, Ident, Item, ItemMod, VisPublic};
 
@@ -99,6 +103,17 @@ impl ModuleOrFile<'_> {
         match self {
             ModuleOrFile::InnerModule { module, .. } => get_item_mod_cfg(module),
             ModuleOrFile::SynFile { module, .. } => module.cfg_attr(),
+        }
+    }
+
+    pub fn module_declarations(&self) -> Vec<ModuleDeclaration> {
+        match self {
+            ModuleOrFile::InnerModule { module, real_path } => {
+                get_item_module_declaration(module, real_path.as_path())
+            }
+            ModuleOrFile::SynFile {
+                file, real_path, ..
+            } => get_file_mod_item(file, real_path),
         }
     }
 
@@ -356,6 +371,38 @@ fn get_files_use_item(file: &File) -> Vec<ModuleUse> {
         .iter()
         .filter_map(|item| match item {
             Item::Use(use_) => Some(ModuleUse::from(use_)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn get_file_mod_item(file: &File, real_path: &Path) -> Vec<ModuleDeclaration> {
+    file.items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Mod(module_declaration) => {
+                let mod_token_span = module_declaration.mod_token.span();
+                let semi_span = module_declaration.semi.span();
+                let mod_offset_line = mod_token_span.end().line;
+                let mod_offset_column = mod_token_span.end().column;
+                let semi_offset_column = semi_span.end().column;
+                let span_start = mod_token_span.start().line;
+                let span_end = mod_token_span.start().column;
+
+                let span = CodeSpan {
+                    start: LineColumn::from((mod_offset_line, mod_offset_column)),
+                    end: LineColumn::from((span_start, span_end + semi_offset_column)),
+                };
+
+                let vis = Visibility::from_syn(&module_declaration.vis);
+                let ident = module_declaration.ident.to_string();
+                Some(ModuleDeclaration {
+                    vis,
+                    ident,
+                    real_path: real_path.to_path_buf(),
+                    span,
+                })
+            }
             _ => None,
         })
         .collect()

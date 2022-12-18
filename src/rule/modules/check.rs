@@ -234,14 +234,13 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             .filter(|module| !module.is_public())
             .collect::<Vec<_>>();
         for module in &non_public_modules {
+            let declaration = module.declaration.as_ref().expect("should be declared");
             self.assertion_results
                 .push_actual(ModuleRuleViolation::be_public(
-                    module
-                        .span
-                        .expect("Should not try to get span for crate root"),
-                    &module.real_path,
-                    module.ident.clone(),
-                    module.visibility,
+                    declaration.span,
+                    &declaration.real_path,
+                    declaration.ident.clone(),
+                    declaration.vis,
                 ))
         }
         non_public_modules.is_empty()
@@ -282,14 +281,16 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
             .collect::<Vec<_>>();
 
         for module in &module_with_non_matching_name {
+            let declaration = module
+                .declaration
+                .as_ref()
+                .expect("module should have declaration");
             self.assertion_results
                 .push_actual(ModuleRuleViolation::have_name_matching(
-                    module
-                        .span
-                        .expect("Should not try to get span for crate root"),
+                    declaration.span,
                     name.to_owned(),
-                    &module.real_path,
-                    module.ident.clone(),
+                    &declaration.real_path,
+                    declaration.ident.clone(),
                 ))
         }
 
@@ -393,8 +394,35 @@ mod condition_test {
 
     #[test]
     #[should_panic]
-    fn should_check_assertion() {
-        Modules::that(Filters::default())
+    fn module_should_have_simple_name_panics() {
+        let excluding_test = Filters::default().exclude_test();
+
+        Modules::that(excluding_test)
+            .reside_in_a_module("archunit_rs::rule::modules::*")
+            .should()
+            .have_simple_name("report")
+            .check();
+    }
+
+    #[test]
+    fn module_should_have_simple_name_ok() {
+        let excluding_test = Filters::default().exclude_test();
+
+        Modules::that(excluding_test)
+            .reside_in_a_module("archunit_rs::rule::modules::*")
+            .should()
+            .have_simple_name("report")
+            .or_should()
+            .have_simple_name("condition")
+            .or_should()
+            .have_simple_name("check")
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn module_should_be_public_panics() {
+        Modules::that(Filters::default().exclude_test())
             .reside_in_a_module("archunit_rs::rule::modules::*")
             .or()
             .have_simple_name("ast")
@@ -404,8 +432,22 @@ mod condition_test {
     }
 
     #[test]
-    fn should_check_dependency_assertions_excluding_cfg_test() {
-        Modules::that(Filters::default().exclude_test())
+    fn module_should_be_private_ok_excluding_cfg_test() {
+        let excluding_test = Filters::default().exclude_test();
+
+        Modules::that(excluding_test)
+            .reside_in_a_module("archunit_rs::rule::modules::*")
+            .or()
+            .have_simple_name("ast")
+            .should()
+            .be_private()
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_dependencies_does_not_match_pattern() {
+        Modules::that(Filters::default())
             .have_simple_name("pattern")
             .should()
             .only_have_dependency_module()
@@ -415,9 +457,10 @@ mod condition_test {
     }
 
     #[test]
-    #[should_panic]
-    fn should_check_dependency_assertions() {
-        Modules::that(Filters::default())
+    fn should_not_panic_when_dependencies_matches_pattern() {
+        let excluding_test = Filters::default().exclude_test();
+
+        Modules::that(excluding_test)
             .have_simple_name("pattern")
             .should()
             .only_have_dependency_module()
