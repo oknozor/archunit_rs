@@ -2,7 +2,6 @@ use crate::assertion_result::AssertionResult;
 use crate::ast::structs::Struct;
 use crate::rule::assertable::Assertable;
 use crate::rule::impl_block::impl_matches;
-use crate::rule::structs::condition::struct_matches;
 use crate::rule::structs::reports::StructRuleViolation;
 use crate::rule::structs::{
     AssertionConjunction, AssertionToken, ConditionToken, SimpleAssertions, StructMatches,
@@ -29,7 +28,7 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
     for ArchRule<ConditionToken, AssertionToken, StructMatches>
 {
     fn apply_conditions(&mut self) {
-        let structs = struct_matches(&self.filters);
+        let structs = self.init_subject();
 
         if self.conditions.is_empty() {
             self.assertion_results.push_expected("All structs should ");
@@ -168,6 +167,10 @@ impl Assertable<ConditionToken, AssertionToken, StructMatches>
 
     fn assertion_results(&self) -> &AssertionResult {
         &self.assertion_results
+    }
+
+    fn has_conditions(&self) -> bool {
+        !self.conditions.is_empty()
     }
 }
 
@@ -501,6 +504,14 @@ mod condition_test {
     fn all_structs_should_derive_or_implement_debug() {
         Structs::all_should(Filters::default())
             .implement_or_derive("Debug")
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_all_struct_derives() {
+        Structs::all_should(Filters::default())
+            .implement_or_derive("Ord")
             .check();
     }
 

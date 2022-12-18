@@ -1,6 +1,5 @@
 use crate::assertion_result::AssertionResult;
 use crate::ast::enums::Enum;
-use crate::ast::module_tree;
 use crate::rule::assertable::Assertable;
 use crate::rule::enums::reports::EnumRuleViolation;
 use crate::rule::enums::{
@@ -29,7 +28,7 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
 {
     fn apply_conditions(&mut self) {
         let mut matches = EnumMatches::default();
-        let enums = module_tree().flatten_enums(&self.filters);
+        let enums = self.init_subject();
 
         enum Conjunction {
             Or,
@@ -38,7 +37,6 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
 
         let mut conjunction = Conjunction::Or;
         self.assertion_results.push_expected("Structs that ");
-
         while let Some(condition) = self.conditions.pop_back() {
             let match_against = match conjunction {
                 Conjunction::Or => &enums,
@@ -146,6 +144,10 @@ impl Assertable<ConditionToken, AssertionToken, EnumMatches>
 
     fn assertion_results(&self) -> &AssertionResult {
         &self.assertion_results
+    }
+
+    fn has_conditions(&self) -> bool {
+        !self.conditions.is_empty()
     }
 }
 
@@ -319,17 +321,31 @@ mod condition_test {
     use crate::Filters;
 
     #[test]
-    #[should_panic]
-    fn should_check_derives_panic() {
+    #[should_panic(
+        expected = r#"Expected Structs that resides in a modules that match '*::report' to derive 'Deserialize' but found 1 violations
+
+  × Enum 'ModuleRuleViolation' should derive 'Deserialize'
+   ╭─[src/rule/modules/report.rs:1:1]
+ 1 │ #[derive(Error, Debug, Diagnostic)]
+ 2 │ pub(crate) enum ModuleRuleViolation {
+   ·                 ─────────┬─────────
+   ·                          ╰── missing derive
+ 3 │     #[error("Module '{module_name}' should be private")]
+   ╰────
+  help: Try adding `#[derive(Deserialize)]` to `ModuleRuleViolation`
+
+"#
+    )]
+    fn should_panic_when_enum_does_not_derive() {
         Enums::that(Filters::default())
-            .reside_in_a_module("*::modules")
+            .reside_in_a_module("*::report")
             .should()
             .derive("Deserialize")
             .check();
     }
 
     #[test]
-    fn should_check_derives_ok() {
+    fn should_not_panic_when_enum_does_derive() {
         Enums::that(Filters::default())
             .have_simple_name("Visibility")
             .should()
@@ -338,11 +354,21 @@ mod condition_test {
     }
 
     #[test]
-    fn should_filter_implementors() {
+    fn should_not_panic_when_implementors_have_simple_name() {
         Enums::that(Filters::default())
             .implement("Condition")
             .should()
             .have_simple_name("ConditionToken")
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_implementors_does_not_have_simple_name() {
+        Enums::that(Filters::default())
+            .implement("Condition")
+            .should()
+            .have_simple_name("AssertionToken")
             .check();
     }
 
@@ -357,13 +383,14 @@ mod condition_test {
     }
 
     #[test]
+    #[should_panic]
     fn should_check_with_or_condition_operator() {
         Enums::that(Filters::default())
-            .have_simple_name("AssertionToken")
+            .have_simple_name("ConditionToken")
             .or()
             .have_simple_name("AssertionResult")
             .should()
-            .derive("Debug")
+            .derive("Clone")
             .check();
     }
 
@@ -379,11 +406,21 @@ mod condition_test {
     }
 
     #[test]
-    fn should_derive_or_implement_debug() {
+    fn should_derive_or_implement_debug_ok() {
         // Note: we are currently limited to struct and enum living in modules
         // anything living inside a function is ignored
         Enums::all_should(Filters::default())
             .implement_or_derive("Debug")
+            .check();
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_derive_or_implement_ord() {
+        // Note: we are currently limited to struct and enum living in modules
+        // anything living inside a function is ignored
+        Enums::all_should(Filters::default())
+            .implement_or_derive("Ord")
             .check();
     }
 }

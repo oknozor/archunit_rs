@@ -1,8 +1,10 @@
+use crate::ast::module_tree;
 use crate::ast::structs::Struct;
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
+use crate::Filters;
 use std::collections::HashSet;
 
 pub mod check;
@@ -72,7 +74,11 @@ impl Condition for ConditionToken {}
 
 impl Assertion for AssertionToken {}
 
-impl Subject for StructMatches {}
+impl Subject for StructMatches {
+    fn init(filters: &Filters<'static>) -> Self {
+        module_tree().flatten_structs(filters)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ConditionToken {

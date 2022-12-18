@@ -22,18 +22,10 @@ pub struct ArchRule<C: Condition + Debug, A: Assertion + Debug + Clone, S: Subje
 /// [`ModuleMatches`], [`StructMatches`], etc.*
 /// If you need to extend the existing [`ArchRules`] for those subjects, you can wrap them in a struct
 /// and provide your custom implementation:
-///
-/// **Example:**
-/// ```rust
-/// use archunit_rs::rule::Subject;
-/// use archunit_rs::rule::structs::StructMatches;
-///
-/// #[derive(Default)]
-/// pub struct CustomStructMatches(StructMatches);
-///
-/// impl Subject for CustomStructMatches {}
 /// ```
-pub trait Subject: Default {}
+pub trait Subject: Default {
+    fn init(filters: &Filters<'static>) -> Self;
+}
 
 /// [`Condition`] are used to filter matching [`Subjects`].
 /// You can write your own custom condition to create new rules.
@@ -63,7 +55,12 @@ pub trait CheckRule<C: Condition, A: Assertion, S: Subject, T: assertable::Asser
 {
     fn check(self) {
         let mut rule = self.get_rule();
-        rule.apply_conditions();
+
+        // If there are no condition we are matching on all items
+        if rule.has_conditions() {
+            rule.apply_conditions();
+        }
+
         let success = rule.apply_assertions();
         if !success {
             let result = rule.assertion_results();
@@ -82,6 +79,7 @@ pub(super) mod assertable {
         fn apply_conditions(&mut self);
         fn apply_assertions(&mut self) -> bool;
         fn assertion_results(&self) -> &AssertionResult;
+        fn has_conditions(&self) -> bool;
     }
 }
 
@@ -100,6 +98,10 @@ where
             assertion_results: AssertionResult::new(),
         }
     }
+
+    fn init_subject(&self) -> S {
+        S::init(&self.filters)
+    }
 }
 
 pub trait ArchRuleBuilder<C: Condition, P: Assertion, S: Subject>: Sized {
@@ -110,7 +112,9 @@ pub trait ArchRuleBuilder<C: Condition, P: Assertion, S: Subject>: Sized {
 
     /// Match all and returns a [`PredicateBuilder`].
     fn all_should(filters: Filters<'static>) -> PredicateBuilder<C, P, S> {
-        PredicateBuilder(ArchRule::<C, P, S>::new(filters))
+        let mut rule = ArchRule::<C, P, S>::new(filters);
+        rule.subject = rule.init_subject();
+        PredicateBuilder(rule)
     }
 }
 

@@ -1,9 +1,9 @@
-use crate::ast::{ItemPath, ModuleUse};
+use crate::ast::{module_tree, ItemPath, ModuleUse};
 use crate::rule::{
     ArchRuleBuilder, Assertion, Condition, ConditionBuilder, ConditionConjunctionBuilder,
     DependencyPredicateConjunctionBuilder, PredicateBuilder, PredicateConjunctionBuilder, Subject,
 };
-use crate::ModuleTree;
+use crate::{Filters, ModuleTree};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -54,7 +54,11 @@ impl Condition for ConditionToken {}
 
 impl Assertion for AssertionToken {}
 
-impl Subject for ModuleMatches {}
+impl Subject for ModuleMatches {
+    fn init(filters: &Filters<'static>) -> Self {
+        module_tree().flatten(filters)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ConditionToken {

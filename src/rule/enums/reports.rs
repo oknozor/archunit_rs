@@ -66,12 +66,12 @@ if that is not possible write the impl block `impl {trait_name} for {enum_name} 
         src: NamedSource,
     },
     #[error("Enum '{enum_name}' name should match {pattern}")]
-    #[diagnostic(help("Try adding `pub` visibility"))]
+    #[diagnostic(help("Try renaming the enum"))]
     HaveNameMatching {
         enum_name: String,
         pattern: String,
         location: String,
-        #[label("should be public")]
+        #[label("does not match")]
         span: SourceSpan,
         #[source_code]
         src: NamedSource,

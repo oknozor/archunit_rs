@@ -1,5 +1,5 @@
 use crate::assertion_result::AssertionResult;
-use crate::ast::{module_tree, ItemPath, ModuleUse};
+use crate::ast::{ItemPath, ModuleUse};
 use crate::rule::modules::report::ModuleRuleViolation;
 use crate::rule::modules::ModuleMatches;
 use crate::rule::modules::{
@@ -29,7 +29,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
 {
     fn apply_conditions(&mut self) {
         let mut matches = ModuleMatches::default();
-        let modules = module_tree().flatten(&self.filters);
+        let modules = self.init_subject();
 
         enum Conjunction {
             Or,
@@ -221,6 +221,10 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
 
     fn assertion_results(&self) -> &AssertionResult {
         &self.assertion_results
+    }
+
+    fn has_conditions(&self) -> bool {
+        !self.conditions.is_empty()
     }
 }
 
