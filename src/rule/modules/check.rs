@@ -158,6 +158,7 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                     SimpleAssertions::BePublic => self.assert_public(),
                     SimpleAssertions::BePrivate => self.assert_private(),
                     SimpleAssertions::HaveSimpleName(name) => self.assert_simple_name(&name),
+                    SimpleAssertions::NotHaveSimpleName(name) => self.assert_not_simple_name(&name),
                 },
                 AssertionToken::Conjunction(a) => match a {
                     AssertionConjunction::AndShould => {
@@ -188,6 +189,12 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                                     SimpleAssertions::HaveSimpleName(name),
                                 ) => {
                                     assertion_result = self.assert_dependencies_name_match(&name);
+                                }
+                                AssertionToken::SimpleAssertion(
+                                    SimpleAssertions::NotHaveSimpleName(name),
+                                ) => {
+                                    assertion_result =
+                                        self.assert_dependencies_name_not_match(&name);
                                 }
                                 AssertionToken::Conjunction(AssertionConjunction::AndShould) => {
                                     self.assertion_results.push_expected(" and ");
@@ -301,6 +308,33 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
         module_with_non_matching_name.is_empty()
     }
 
+    fn assert_not_simple_name(&mut self, name: &str) -> bool {
+        self.assertion_results
+            .push_expected(format!("not have simple name '{name}'"));
+        let module_with_matching_name = self
+            .subject
+            .0
+            .values()
+            .filter(|module| module.ident == name)
+            .collect::<Vec<_>>();
+
+        for module in &module_with_matching_name {
+            let declaration = module
+                .declaration
+                .as_ref()
+                .expect("module should have declaration");
+            self.assertion_results
+                .push_actual(ModuleRuleViolation::not_have_name_matching(
+                    declaration.span,
+                    name.to_owned(),
+                    &declaration.real_path,
+                    declaration.ident.clone(),
+                ))
+        }
+
+        module_with_matching_name.is_empty()
+    }
+
     fn assert_dependencies_name_match(&mut self, pattern: &str) -> bool {
         self.assertion_results.push_expected(format!(
             "only have dependencies matching pattern '{pattern}'"
@@ -331,6 +365,49 @@ impl ArchRule<ConditionToken, AssertionToken, ModuleMatches> {
                 usage.into_iter().for_each(|usage| {
                     self.assertion_results.push_actual(
                         ModuleRuleViolation::only_have_dependencies_with_simple_name(
+                            usage.span,
+                            real_path,
+                            path.to_string(),
+                            pattern.to_owned(),
+                            usage.parts.to_owned(),
+                        ),
+                    )
+                });
+            }
+            false
+        }
+    }
+
+    fn assert_dependencies_name_not_match(&mut self, pattern: &str) -> bool {
+        self.assertion_results.push_expected(format!(
+            "only have dependencies not matching pattern '{pattern}'"
+        ));
+        let dependencies_matches = self
+            .subject
+            .0
+            .values()
+            .map(|module| module.flatten_deps(&self.filters))
+            .collect::<Vec<_>>();
+
+        let mut per_module_mismatch = vec![];
+        for dependency_match in dependencies_matches {
+            for (path, (real_path, deps)) in dependency_match.0 {
+                let mismatch_deps: Vec<&ModuleUse> =
+                    deps.iter().filter(|dep| dep.matching(pattern)).collect();
+
+                if !mismatch_deps.is_empty() {
+                    per_module_mismatch.push((path, real_path, mismatch_deps));
+                }
+            }
+        }
+
+        if per_module_mismatch.is_empty() {
+            true
+        } else {
+            for (path, real_path, usage) in per_module_mismatch {
+                usage.into_iter().for_each(|usage| {
+                    self.assertion_results.push_actual(
+                        ModuleRuleViolation::only_have_dependencies_without_simple_name(
                             usage.span,
                             real_path,
                             path.to_string(),
@@ -451,6 +528,29 @@ mod condition_test {
             .only_have_dependency_module()
             .that()
             .have_simple_name("wildmatch")
+            .check()
+    }
+
+    #[test]
+    fn should_not_panic_when_dependencies_does_not_match() {
+        Modules::that(ExludeModules::default())
+            .have_simple_name("pattern")
+            .should()
+            .only_have_dependency_module()
+            .that()
+            .does_not_have_simple_name("serde")
+            .check()
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_dependencies_match() {
+        Modules::that(ExludeModules::default())
+            .have_simple_name("pattern")
+            .should()
+            .only_have_dependency_module()
+            .that()
+            .does_not_have_simple_name("wildmatch")
             .check()
     }
 
