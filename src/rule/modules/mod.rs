@@ -96,6 +96,7 @@ pub enum SimpleAssertions {
     BePublic,
     BePrivate,
     HaveSimpleName(String),
+    NotHaveSimpleName(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -159,6 +160,15 @@ impl ModulePredicateBuilder {
             .assertions
             .push_front(AssertionToken::SimpleAssertion(
                 SimpleAssertions::HaveSimpleName(name.to_owned()),
+            ));
+        PredicateConjunctionBuilder(self.0)
+    }
+
+    pub fn does_not_have_simple_name(mut self, name: &str) -> ModulePredicateConjunctionBuilder {
+        self.0
+            .assertions
+            .push_front(AssertionToken::SimpleAssertion(
+                SimpleAssertions::NotHaveSimpleName(name.to_owned()),
             ));
         PredicateConjunctionBuilder(self.0)
     }
