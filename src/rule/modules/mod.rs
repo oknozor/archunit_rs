@@ -64,6 +64,7 @@ impl Subject for ModuleMatches {
 pub enum ConditionToken {
     AreDeclaredPublic,
     ResidesInAModule(String),
+    NotResidesInAModule(String),
     AreDeclaredPrivate,
     HaveSimpleName(String),
     HaveSimpleEndingWith(String),
@@ -112,6 +113,16 @@ impl ModuleConditionBuilder {
         self.0
             .conditions
             .push_front(ConditionToken::ResidesInAModule(module.to_owned()));
+        ConditionConjunctionBuilder(self.0)
+    }
+
+    pub fn does_not_reside_in_a_module(
+        mut self,
+        module: &str,
+    ) -> ModuleConditionConjunctionBuilder {
+        self.0
+            .conditions
+            .push_front(ConditionToken::NotResidesInAModule(module.to_owned()));
         ConditionConjunctionBuilder(self.0)
     }
 

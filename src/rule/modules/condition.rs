@@ -148,4 +148,29 @@ mod condition_test {
             &"archunit_rs::ast",
         ]);
     }
+
+    #[test]
+    fn should_filter_modules_not_in_a_module() {
+        let mut arch_rule = Modules::that(ExludeModules::cfg_test())
+            .does_not_reside_in_a_module("archunit_rs::rule::modules*")
+            .0;
+
+        arch_rule.apply_conditions();
+
+        let paths = arch_rule
+            .subject
+            .0
+            .keys()
+            .map(|key| key.as_str())
+            .collect::<Vec<&str>>();
+
+        assert_that!(arch_rule.assertion_results.expected).is_equal_to(
+            &"Modules that not resides in a modules that match 'archunit_rs::rule::modules*'"
+                .to_owned(),
+        );
+
+        for path in paths {
+            assert_that!(path).matches(|path| !path.starts_with("archunit_rs::rule::modules"));
+        }
+    }
 }
