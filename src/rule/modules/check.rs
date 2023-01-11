@@ -118,6 +118,20 @@ impl Assertable<ConditionToken, AssertionToken, ModuleMatches>
                         })
                         .collect::<HashMap<&ItemPath, &ModuleTree>>()
                 }
+                ConditionToken::NotResidesInAModule(name) => {
+                    self.assertion_results
+                        .push_expected(format!("not resides in a modules that match '{name}'"));
+
+                    match_against
+                        .0
+                        .values()
+                        .flat_map(|module| {
+                            module
+                                .module_that(|sub| !sub.path_match(&name), &self.filters)
+                                .0
+                        })
+                        .collect::<HashMap<&ItemPath, &ModuleTree>>()
+                }
                 ConditionToken::And => {
                     self.assertion_results.push_expected(" and ");
                     conjunction = Conjunction::And;
